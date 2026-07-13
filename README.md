@@ -1,19 +1,101 @@
 # auth-service
 
-Microservicio de autenticación y gestión de usuarios de ParkLink. Maneja registro, login/logout con JWT, roles y permisos (conductor/propietario), y recuperación de contraseña.
+Servicio de autenticación con FastAPI, PostgreSQL, JWT y SQLAlchemy.
 
-auth-service: registro, login, tokens, permisos/roles, etc
+## Instalación
 
-POST /auth/register: Registrar un nuevo usuario en el sistema.
+```bash
+pip install -r requirements.txt
+```
 
-POST /auth/login: Autenticar credenciales y devolver el token JWT.
+## Ejecutar la aplicación
 
-POST /auth/logout: Invalidar el token de la sesión actual.
+```bash
+python main.py
+```
 
-GET /users/{id}: Obtener los datos del perfil del usuario
+o con uvicorn directamente:
 
-PUT /users/{id}: Actualizar la información personal de un usuario
+```bash
+uvicorn main:app --reload
+```
 
-POST /auth/password-reset/request: Solicitar el reseteo de contraseña (recibe el email, genera un token temporal).
+## Ejecutar la aplicación con docker:
+```bash
+sudo docker compose up --build
+```
 
-POST /auth/password-reset/confirm: Confirmar el reseteo con el token recibido y la nueva contraseña.
+Al iniciar el contenedor, `auth-service` ejecuta automáticamente `alembic upgrade head` antes de levantar FastAPI.
+Eso permite aplicar migraciones sin borrar la base de datos.
+
+## Ejecutar los tests con docker:
+```bash
+sudo docker compose -f compose.test.yaml up --abort-on-container-exit --exit-code-from auth-tests
+```
+
+
+## Tests
+
+La aplicación incluye una suite completa de tests con cobertura automática.
+
+### Ejecutar todos los tests
+
+```bash
+pytest
+```
+
+### Ejecutar tests con cobertura detallada
+
+```bash
+pytest --cov=app --cov-report=html
+```
+
+### Ejecutar tests de un módulo específico
+
+```bash
+pytest tests/test_security.py
+pytest tests/test_models.py
+pytest tests/test_schemas.py
+pytest tests/api/test_auth.py
+```
+
+### Ejecutar tests con salida verbose
+
+```bash
+pytest -v
+```
+
+## Estructura de tests
+
+```
+tests/
+├── __init__.py
+├── conftest.py              # Configuración y fixtures
+├── test_security.py         # Tests de funciones de seguridad
+├── test_models.py           # Tests de modelos SQLAlchemy
+├── test_schemas.py          # Tests de validación Pydantic
+├── test_email.py            # Tests de envío de emails
+└── api/
+    ├── __init__.py
+    └── test_auth.py         # Tests de endpoints de autenticación
+```
+
+## Coverage
+
+Después de ejecutar los tests con cobertura, se genera un reporte HTML en `htmlcov/index.html`
+
+## Variables de entorno
+
+Crear un archivo `.env` con:
+
+```
+DATABASE_URL=postgresql://user_auth:pass_auth@localhost:5432/auth_db
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRE_MIN=60
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_SSL=True
+SMTP_STARTTLS=False
+```

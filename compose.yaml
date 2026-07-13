@@ -1,0 +1,29 @@
+services:
+  db-auth:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=user_auth
+      - POSTGRES_PASSWORD=pass_auth
+      - POSTGRES_DB=auth_db
+    ports:
+      - "5433:5432" 
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_auth -d auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-service:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PRODUCT_SERVICE_URL=${PRODUCT_SERVICE_URL}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+    depends_on:
+      db-auth:
+        condition: service_healthy
