@@ -7,22 +7,27 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DATABASE_URL: str
 
+    # Public URL this service is reachable at, used to build absolute links
+    # (logo, verify-email/reset-password pages) inside transactional emails.
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
+
+    # JWT
     JWT_SECRET: str = "dev-secret-change-me"
-    JWT_EXPIRE_MIN: int = 360
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    PRODUCT_SERVICE_URL: str = ""
-    GOOGLE_CLIENT_ID_WEB: str = ""
-    GOOGLE_CLIENT_ID_ANDROID: str = ""
+    # Brevo (transactional email)
+    BREVO_API_KEY: str = ""
+    EMAIL_FROM: str = "no-reply@mail.parklink.com.ar"
+    EMAIL_FROM_NAME: str = "ParkLink Argentina"
 
-    AWS_REGION: str = ""
-    S3_BUCKET_NAME: str = ""
-    AWS_SECRET_ACCESS_KEY: str = ""
-    AWS_ACCESS_KEY_ID: str = ""
-
-    EMAIL_FROM: str = ""
-    RESEND_API_KEY: str = ""
+    # Skips email verification requirement at login (useful for local dev/tests)
     SKIP_EMAIL_VERIFICATION: bool = False
-    PRODUCT_SERVICE_URL: str = ""
+
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+
     model_config = ConfigDict(
         extra="ignore", env_file=".env", env_file_encoding="utf-8"
     )

@@ -5,4 +5,5 @@ services:
     container_name: auth-tests
     environment:
       - DATABASE_URL=sqlite:///./test.db
+      - JWT_SECRET=test-secret
     command: ["pytest", "-q"]

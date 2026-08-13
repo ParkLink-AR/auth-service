@@ -1,101 +1,40 @@
 from __future__ import annotations
+from uuid import UUID
 
-from typing import Any
-
-
-from fastapi import APIRouter, Depends, Query
-from urllib.parse import unquote
-
-# from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import date
 
 from app import models, schemas
-from app.api.dependencies import get_current_user, require_admin
+from app.api.dependencies import get_current_user
 from app.database import get_db
 from app.services import users as users_service
-from app.services import auth_service
 
-router = APIRouter(prefix="/api/users", tags=["users"])
-
-
-@router.post("/create-admin", response_model=schemas.UserOut, status_code=201)
-def create_admin(payload: schemas.UserCreate, db: Session = Depends(get_db)):
-    return auth_service.register_admin(payload, db)
+router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/me", response_model=schemas.UserOut)
-def get_my_profile(current_user: models.User = Depends(get_current_user)):
-    return users_service.get_my_profile(current_user)
+@router.get("/{id}", response_model=schemas.UserOut)
+def get_user(
+    id: UUID,
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.get_user(id, current_user)
 
 
-@router.patch("/me", response_model=schemas.UserOut)
-def update_my_profile(
+@router.put("/{id}", response_model=schemas.UserOut)
+def update_user(
+    id: UUID,
     payload: schemas.UserUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
-) -> Any:
-    return users_service.update_my_profile(payload, db, current_user)
-
-
-@router.get("", response_model=schemas.PaginatedAdminUsersResponse)
-def list_users_admin(
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_admin),
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    search: str | None = Query(None),
-    start_date: date | None = Query(None),
-    end_date: date | None = Query(None),
 ):
-    return users_service.list_users_admin(db, page, limit, search, start_date, end_date)
+    return users_service.update_user(id, payload, db, current_user)
 
 
-@router.get("/metrics")
-def get_user_metrics(
+@router.delete("/{id}", response_model=dict)
+def delete_user(
+    id: UUID,
+    payload: schemas.AccountDeleteRequest,
     db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_admin),
-    start_date: date = Query(..., alias="from"),
-    end_date: date = Query(..., alias="to"),
-):
-    return users_service.get_user_metrics(db, start_date, end_date)
-
-
-@router.put("/{id}/promote-to-admin")
-def promote_to_admin(
-    id: int,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_admin),
-):
-    return users_service.promote_to_admin(db, id, admin_user)
-
-
-@router.post("/me/upload-url")
-def generate_upload_url(
-    content_type: str,
     current_user: models.User = Depends(get_current_user),
 ):
-    return users_service.generate_upload_url(content_type, current_user)
-
-
-@router.get("/{id}", response_model=schemas.UserPublicOut)
-def get_user_public_profile_by_id(id: int, db: Session = Depends(get_db)):
-    return users_service.get_user_public_profile_by_id(id, db)
-
-
-@router.post("/{id}/block")
-def block_user(
-    id: int,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_admin),
-):
-    return users_service.block_user(db, id, admin_user)
-
-
-@router.post("/{id}/unblock")
-def unblock_user(
-    id: int,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_admin),
-):
-    return users_service.unblock_user(db, id, admin_user)
+    return users_service.delete_user(id, payload, db, current_user)

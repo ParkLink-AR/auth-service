@@ -1,14 +1,17 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 from loguru import logger
 
 from app.database import SessionLocal
 from app import models
-from app.api import auth, user, addresses, pin, push_tokens, notifications
+from app.api import auth, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
@@ -20,12 +23,12 @@ setup_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     run_migrations()
-    logger.info("[STARTUP] Bazaar Auth Service iniciado")
+    logger.info("[STARTUP] ParkLink Auth Service iniciado")
     yield
-    logger.info("[SHUTDOWN] Bazaar Auth Service detenido")
+    logger.info("[SHUTDOWN] ParkLink Auth Service detenido")
 
 
-app = FastAPI(title="Bazaar Auth Service", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="ParkLink Auth Service", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(ErrorHandlerMiddleware)
 app.add_middleware(
@@ -37,6 +40,12 @@ app.add_middleware(
 )
 
 app.add_exception_handler(ServiceException, problem_details_handler)
+
+app.mount(
+    "/static",
+    StaticFiles(directory=Path(__file__).parent / "app" / "static"),
+    name="static",
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -83,10 +92,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.include_router(auth.router)
 app.include_router(user.router)
-app.include_router(addresses.router)
-app.include_router(pin.router)
-app.include_router(push_tokens.router)
-app.include_router(notifications.router)
 
 
 @app.get("/livez", tags=["health"])

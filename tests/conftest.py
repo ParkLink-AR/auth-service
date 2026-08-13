@@ -1,13 +1,17 @@
-import pytest
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
 
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+os.environ["JWT_SECRET"] = "test-secret"
+os.environ.setdefault("SKIP_EMAIL_VERIFICATION", "false")
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
-from app.models import User
+from app.models import User, UserStatus
+from app.security import hash_password
 from main import app
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -40,17 +44,12 @@ def client(db):
 
 @pytest.fixture
 def test_user(db):
-    from app.security import hash_password
-
     user = User(
         email="test@example.com",
-        username="testuser",
-        hashed_password=hash_password("password123"),
-        first_name="Test",
-        last_name="User",
-        role="user",
-        blocked=False,
-        is_verified=True,
+        phone="+541100000000",
+        password_hash=hash_password("Password123"),
+        email_verified=True,
+        status=UserStatus.ACTIVE,
     )
     db.add(user)
     db.commit()
@@ -59,31 +58,10 @@ def test_user(db):
 
 
 @pytest.fixture
-def test_admin(db):
-    from app.security import hash_password
-
-    admin = User(
-        email="admin@example.com",
-        username="admin",
-        hashed_password=hash_password("admin123"),
-        first_name="Admin",
-        last_name="User",
-        role="admin",
-        blocked=False,
-        is_verified=True,
-    )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
-    return admin
-
-
-@pytest.fixture
 def valid_user_data():
     return {
         "email": "newuser@example.com",
-        "username": "newuser",
-        "password": "SecurePass123!",
-        "first_name": "New",
-        "last_name": "User",
+        "password": "SecurePass123",
+        "device_id": "device-abc",
+        "device_name": "iPhone 15",
     }

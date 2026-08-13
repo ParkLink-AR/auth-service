@@ -1,9 +1,15 @@
 """Models package for auth service."""
 
 from ..database import Base
-from .user import User
-from .address import UserAddress
-from .device_token import DeviceToken
-from .notification import Notification
+from .refresh_token import RefreshToken
+from .user import User, UserStatus
+from .verification_token import VerificationToken, VerificationTokenType
 
-__all__ = ["Base", "User", "UserAddress", "DeviceToken", "Notification"]
+__all__ = [
+    "Base",
+    "User",
+    "UserStatus",
+    "RefreshToken",
+    "VerificationToken",
+    "VerificationTokenType",
+]

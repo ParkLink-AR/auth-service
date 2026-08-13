@@ -1,87 +1,75 @@
 from __future__ import annotations
-from fastapi import HTTPException, status
+
+import httpx
+from loguru import logger
+
 from app.config import settings
+from app.exceptions.handler import ServiceException
 from .email_templates import (
-    get_verification_email_html,
     get_reset_password_email_html,
-    get_welcome_email_html,
+    get_verification_email_html,
 )
 
-try:
-    import resend
-except ImportError:
-    resend = None
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
-def send_email_html(
-    to_email: str, subject: str, html_body: str, text_fallback: str | None = None
-):
-    """Send email using Resend API"""
-    api_key = settings.RESEND_API_KEY
+def send_email_html(to_email: str, subject: str, html_body: str) -> None:
+    """Send a transactional email through the Brevo (Sendinblue) REST API."""
 
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="RESEND_API_KEY is not configured",
+    if not settings.BREVO_API_KEY:
+        logger.warning(
+            f"[MAIL] BREVO_API_KEY no configurada, se omite el envío a {to_email}"
         )
+        return
 
-    if not resend:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="resend library is not installed",
-        )
-
-    resend.api_key = api_key
-    from_email = settings.EMAIL_FROM
+    payload = {
+        "sender": {"name": settings.EMAIL_FROM_NAME, "email": settings.EMAIL_FROM},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+    headers = {
+        "api-key": settings.BREVO_API_KEY,
+        "accept": "application/json",
+        "content-type": "application/json",
+    }
 
     try:
-        r = resend.Emails.send(
-            {
-                "from": from_email,
-                "to": to_email,
-                "subject": subject,
-                "html": html_body,
-                "text": text_fallback or "Your email client does not support HTML.",
-            }
+        response = httpx.post(BREVO_API_URL, json=payload, headers=headers, timeout=10.0)
+    except httpx.HTTPError as e:
+        logger.error(f"[MAIL] Error de red enviando email a {to_email}: {e}")
+        raise ServiceException(
+            status_code=502,
+            title="Bad Gateway",
+            detail="Error sending email.",
         )
 
-        if r.get("id"):
-            print(f"[MAIL] Email enviado exitosamente: {r['id']}")
-        else:
-            error_msg = r.get("message", "Error desconocido")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Error sending email: {error_msg}",
-            )
-    except Exception as e:
-        print(f"[MAIL] Error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Error sending email: {str(e)}",
+    if response.status_code >= 400:
+        logger.error(
+            f"[MAIL] Brevo devolvió status={response.status_code} body={response.text}"
+        )
+        raise ServiceException(
+            status_code=502,
+            title="Bad Gateway",
+            detail="Error sending email.",
         )
 
-
-def send_verification_email(to_email: str, username: str, verification_code: str):
-    """Enviar email de verificación con código personalizado"""
-    html_content = get_verification_email_html(username, verification_code)
-    send_email_html(
-        to_email=to_email, subject="Verifica tu cuenta - Bazaar", html_body=html_content
-    )
+    logger.debug(f"[MAIL] Email enviado a {to_email}: {response.json().get('messageId')}")
 
 
-def send_reset_password_email(to_email: str, username: str, reset_code: str):
-    """Enviar email de reseteo de contraseña con código personalizado"""
-    html_content = get_reset_password_email_html(username, reset_code)
+def send_verification_email(to_email: str, verification_token: str) -> None:
+    html_content = get_verification_email_html(verification_token)
     send_email_html(
         to_email=to_email,
-        subject="Restablecer tu contraseña - Bazaar",
+        subject="Verificá tu cuenta - ParkLink",
         html_body=html_content,
     )
 
 
-def send_welcome_email(to_email: str, username: str):
-    """Enviar email de bienvenida (opcional)"""
-    html_content = get_welcome_email_html(username)
+def send_reset_password_email(to_email: str, reset_token: str) -> None:
+    html_content = get_reset_password_email_html(reset_token)
     send_email_html(
-        to_email=to_email, subject="¡Bienvenido a Bazaar!", html_body=html_content
+        to_email=to_email,
+        subject="Restablecer tu contraseña - ParkLink",
+        html_body=html_content,
     )

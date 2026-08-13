@@ -2,13 +2,15 @@ services:
   db-auth:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=user_auth
-      - POSTGRES_PASSWORD=pass_auth
-      - POSTGRES_DB=auth_db
+      - POSTGRES_USER=parklink_auth
+      - POSTGRES_PASSWORD=parklink_auth
+      - POSTGRES_DB=parklink_auth_db
     ports:
-      - "5433:5432" 
+      - "5433:5432"
+    volumes:
+      - parklink_auth_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user_auth -d auth_db"]
+      test: ["CMD-SHELL", "pg_isready -U parklink_auth -d parklink_auth_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -18,12 +20,22 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - PRODUCT_SERVICE_URL=${PRODUCT_SERVICE_URL}
-      - EMAIL_FROM=${EMAIL_FROM}
-      - AWS_REGION=${AWS_REGION}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
-      - RESEND_API_KEY=${RESEND_API_KEY}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      # Always the in-network hostname of db-auth below, regardless of what DATABASE_URL
+      # is set to in .env (that one's for running the app locally, outside Docker).
+      - DATABASE_URL=postgresql://parklink_auth:parklink_auth@db-auth:5432/parklink_auth_db
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-no-reply@mail.parklink.com.ar}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME:-ParkLink Argentina}
+      - SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-false}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:8000}
     depends_on:
       db-auth:
         condition: service_healthy
+
+volumes:
+  parklink_auth_db_data:
