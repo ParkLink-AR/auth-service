@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from loguru import logger
 from sqlalchemy.orm import Session
 
 from app import models, schemas, security
-from app.config import settings
 from app.exceptions.handler import ServiceException
-from app.models import UserStatus, VerificationTokenType
+from app.models import UserStatus
 from app.repositories import tokens as tokens_repository
 from app.repositories import users as users_repository
+from app.services.auth_service import issue_email_verification_code
 from app.utils.email import send_verification_email
 
 
@@ -41,17 +40,14 @@ def update_user(user_id, payload: schemas.UserUpdate, db: Session, current_user:
         current_user.email = new_email
         current_user.email_verified = False
 
-        tokens_repository.invalidate_active_tokens(db, current_user.id, VerificationTokenType.EMAIL)
-        raw_token = security.generate_opaque_token()
-        token = models.VerificationToken(
-            user_id=current_user.id,
-            type=VerificationTokenType.EMAIL,
-            token_hash=security.hash_token(raw_token),
-            expires_at=datetime.now(timezone.utc)
-            + timedelta(hours=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS),
-        )
-        tokens_repository.create_verification_token(db, token)
-        send_verification_email(to_email=new_email, verification_token=raw_token)
+        code = issue_email_verification_code(db, current_user)
+        send_verification_email(to_email=new_email, code=code)
+
+    if "first_name" in update_data:
+        current_user.first_name = update_data["first_name"]
+
+    if "last_name" in update_data:
+        current_user.last_name = update_data["last_name"]
 
     if "phone" in update_data and update_data["phone"] != current_user.phone:
         new_phone = update_data["phone"]

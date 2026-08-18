@@ -1,9 +1,9 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, computed_field, field_validator, model_validator, StringConstraints
 from pydantic_core import PydanticCustomError
 
 from app.models.user import UserStatus
@@ -42,6 +42,34 @@ def _validate_password_strength(v: str) -> str:
 
 
 PhoneStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=30)]
+
+# E.164 (+549..., +1..., etc). Used where the phone is a verified channel
+# (signup wizard), stricter than the generic PhoneStr above.
+PhoneE164Str = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\+\d{8,15}$")]
+
+MIN_SIGNUP_AGE_YEARS = 18
+
+
+def _validate_min_age(v: date) -> date:
+    today = date.today()
+    age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+    if age < MIN_SIGNUP_AGE_YEARS:
+        raise PydanticCustomError(
+            "underage", f"You must be at least {MIN_SIGNUP_AGE_YEARS} years old"
+        )
+    return v
+
+
+# Argentine DNI: digits only once dots/spaces are stripped ("12.345.678" or
+# "12345678"), 7-8 digits.
+DniStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=7, max_length=10)]
+
+
+def _normalize_dni(v: str) -> str:
+    digits = re.sub(r"[.\s]", "", v)
+    if not digits.isdigit() or not (7 <= len(digits) <= 8):
+        raise PydanticCustomError("invalid_dni", "DNI must be 7-8 digits")
+    return digits
 
 
 # -------------------------
@@ -83,15 +111,32 @@ class SessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+NameStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
 class UserCreate(DeviceInfo):
     email: EmailStr
-    phone: Optional[PhoneStr] = None
+    phone: PhoneE164Str
+    first_name: NameStr
+    last_name: NameStr
+    dni: DniStr
+    birth_date: date
     password: str
 
     @field_validator("email")
     @classmethod
     def email_to_lower(cls, v: EmailStr) -> str:
         return _normalize_email(v)
+
+    @field_validator("dni")
+    @classmethod
+    def dni_validator(cls, v: str) -> str:
+        return _normalize_dni(v)
+
+    @field_validator("birth_date")
+    @classmethod
+    def birth_date_validator(cls, v: date) -> date:
+        return _validate_min_age(v)
 
     @field_validator("password")
     @classmethod
@@ -128,7 +173,36 @@ class EmailVerificationRequest(BaseModel):
 
 
 class EmailVerificationConfirm(BaseModel):
-    token: str
+    email: EmailStr
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=6)]
+
+    @field_validator("email")
+    @classmethod
+    def email_to_lower(cls, v: EmailStr) -> str:
+        return _normalize_email(v)
+
+    @field_validator("code")
+    @classmethod
+    def code_is_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise PydanticCustomError("invalid_code", "Code must be 6 digits")
+        return v
+
+
+class PhoneRegistrationRequest(BaseModel):
+    phone: PhoneE164Str
+
+
+class PhoneRegistrationConfirm(BaseModel):
+    phone: PhoneE164Str
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=6)]
+
+    @field_validator("code")
+    @classmethod
+    def code_is_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise PydanticCustomError("invalid_code", "Code must be 6 digits")
+        return v
 
 
 class PasswordResetRequest(BaseModel):
@@ -141,8 +215,21 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordResetConfirm(BaseModel):
-    token: str
+    email: EmailStr
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=6)]
     new_password: str
+
+    @field_validator("email")
+    @classmethod
+    def email_to_lower(cls, v: EmailStr) -> str:
+        return _normalize_email(v)
+
+    @field_validator("code")
+    @classmethod
+    def code_is_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise PydanticCustomError("invalid_code", "Code must be 6 digits")
+        return v
 
     @field_validator("new_password")
     @classmethod
@@ -159,6 +246,10 @@ class UserOut(BaseModel):
     id: UUID
     email: EmailStr
     phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    dni: Optional[str] = None
+    birth_date: Optional[date] = None
     email_verified: bool
     phone_verified: bool
     status: UserStatus
@@ -168,10 +259,20 @@ class UserOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @computed_field
+    @property
+    def name(self) -> str:
+        """Full display name -- kept as a single computed field so mobile
+        (and anything else consuming this API) doesn't need to know the
+        identity is stored as first_name/last_name under the hood."""
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[PhoneStr] = None
+    first_name: Optional[NameStr] = None
+    last_name: Optional[NameStr] = None
 
     @field_validator("email")
     @classmethod

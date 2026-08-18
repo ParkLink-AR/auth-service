@@ -129,6 +129,39 @@ def invalidate_active_tokens(
     db.commit()
 
 
+def get_active_verification_token_for_user(
+    db: Session, user_id: UUID, token_type: models.VerificationTokenType
+) -> models.VerificationToken | None:
+    """Latest unused, unexpired token of this type for a specific user.
+
+    Scoping by user (instead of matching the submitted code's hash against
+    every active token in the table) keeps the search space for a guessed
+    6-digit code limited to this one user's attempts counter.
+    """
+    now = datetime.now(timezone.utc)
+    return (
+        db.query(models.VerificationToken)
+        .filter(
+            and_(
+                models.VerificationToken.user_id == user_id,
+                models.VerificationToken.type == token_type,
+                models.VerificationToken.used_at.is_(None),
+                models.VerificationToken.expires_at > now,
+            )
+        )
+        .order_by(models.VerificationToken.created_at.desc())
+        .first()
+    )
+
+
+def increment_attempts(db: Session, token: models.VerificationToken) -> int:
+    token.attempts += 1
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    return token.attempts
+
+
 def get_latest_token(
     db: Session, user_id: UUID, token_type: models.VerificationTokenType
 ) -> models.VerificationToken | None:

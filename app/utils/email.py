@@ -57,8 +57,11 @@ def send_email_html(to_email: str, subject: str, html_body: str) -> None:
     logger.debug(f"[MAIL] Email enviado a {to_email}: {response.json().get('messageId')}")
 
 
-def send_verification_email(to_email: str, verification_token: str) -> None:
-    html_content = get_verification_email_html(verification_token)
+def send_verification_email(to_email: str, code: str) -> None:
+    if not settings.BREVO_API_KEY:
+        logger.info(f"[MAIL][DEV] Código de verificación para {to_email}: {code}")
+
+    html_content = get_verification_email_html(code)
     send_email_html(
         to_email=to_email,
         subject="Verificá tu cuenta - ParkLink",
@@ -66,8 +69,11 @@ def send_verification_email(to_email: str, verification_token: str) -> None:
     )
 
 
-def send_reset_password_email(to_email: str, reset_token: str) -> None:
-    html_content = get_reset_password_email_html(reset_token)
+def send_reset_password_email(to_email: str, code: str) -> None:
+    if not settings.BREVO_API_KEY:
+        logger.info(f"[MAIL][DEV] Código de restablecimiento para {to_email}: {code}")
+
+    html_content = get_reset_password_email_html(code)
     send_email_html(
         to_email=to_email,
         subject="Restablecer tu contraseña - ParkLink",

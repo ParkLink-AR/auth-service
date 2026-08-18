@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, String
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.sql import func
 
 from ..database import Base
@@ -23,6 +23,7 @@ class VerificationToken(Base):
     )
     type = Column(Enum(VerificationTokenType, name="verification_token_type"), nullable=False, index=True)
     token_hash = Column(String(64), nullable=False, index=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default="0")
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(

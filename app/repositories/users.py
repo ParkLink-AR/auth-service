@@ -17,6 +17,10 @@ def get_by_phone(db: Session, phone: str) -> models.User | None:
     return db.query(models.User).filter(models.User.phone == phone).first()
 
 
+def get_by_dni(db: Session, dni: str) -> models.User | None:
+    return db.query(models.User).filter(models.User.dni == dni).first()
+
+
 def create(db: Session, user: models.User) -> models.User:
     db.add(user)
     db.flush()

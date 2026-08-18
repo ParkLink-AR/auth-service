@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, String
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, String
 from sqlalchemy.sql import func
 
 from ..database import Base
@@ -20,6 +20,10 @@ class User(Base):
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     phone = Column(String(30), unique=True, nullable=True, index=True)
+    first_name = Column(String(80), nullable=True)
+    last_name = Column(String(80), nullable=True)
+    dni = Column(String(20), unique=True, nullable=True, index=True)
+    birth_date = Column(Date, nullable=True)
     password_hash = Column(String, nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
     phone_verified = Column(Boolean, default=False, nullable=False)

@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -64,6 +65,15 @@ def decode_access_token(token: str) -> dict | None:
 
 def generate_opaque_token() -> str:
     return secrets.token_urlsafe(48)
+
+
+def generate_numeric_code(length: int = 6) -> str:
+    """Short numeric code meant to be typed by hand (e.g. email verification OTP).
+
+    Unlike generate_opaque_token, this is small enough to brute-force if not
+    rate-limited -- callers must scope lookups per-user and cap attempts.
+    """
+    return "".join(secrets.choice(string.digits) for _ in range(length))
 
 
 def hash_token(raw_token: str) -> str:

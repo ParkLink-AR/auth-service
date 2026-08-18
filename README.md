@@ -1,10 +1,11 @@
 # auth-service
 
-Microservicio de autenticación de **ParkLink**: registro, login, tokens (access + refresh),
-sesiones multi-dispositivo, verificación de email y reseteo de contraseña.
+Microservicio de autenticación de **ParkLink**: registro por wizard (mail y teléfono
+verificados *antes* de crear la cuenta), login, tokens (access + refresh), sesiones
+multi-dispositivo y reseteo de contraseña — todo por código de 6 dígitos, nada de links.
 
 Construido con **FastAPI**, **PostgreSQL** (SQLAlchemy + Alembic) y **JWT**. Los emails
-transaccionales se envían con **Brevo**.
+transaccionales se mandan con **Brevo**, los SMS con **Twilio**.
 
 ## Qué implementa
 
@@ -12,18 +13,22 @@ transaccionales se envían con **Brevo**.
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/register` | Registra un usuario nuevo (email + password, teléfono opcional). Envía email de verificación. |
-| POST | `/auth/login` | Autentica con email o teléfono + password. Devuelve `access_token` + `refresh_token`. |
+| POST | `/auth/registration/email/request` | Wizard de registro, paso 1: manda un código de 6 dígitos al mail (todavía no existe la cuenta). |
+| POST | `/auth/registration/email/confirm` | Confirma el mail con `{email, code}`. |
+| POST | `/auth/registration/phone/request` | Wizard de registro, paso 2: manda un código de 6 dígitos por SMS. |
+| POST | `/auth/registration/phone/confirm` | Confirma el teléfono con `{phone, code}`. |
+| POST | `/auth/register` | Wizard de registro, paso final: crea la cuenta (nombre, apellido, DNI, fecha de nacimiento, password) — exige que el mail y el teléfono ya se hayan verificado en los pasos anteriores. Nace ya verificada en ambos canales. |
+| POST | `/auth/login` | Autentica con email o teléfono + password. Devuelve `access_token` + `refresh_token`. Falla con 403 si el email no está verificado. |
 | POST | `/auth/refresh` | Rota el refresh token: invalida el usado y devuelve un par nuevo. |
 | POST | `/auth/logout` | Invalida el refresh token de la sesión actual (un solo dispositivo). |
 | GET | `/auth/sessions` | Lista las sesiones/dispositivos activos del usuario autenticado. |
 | DELETE | `/auth/sessions/{session_id}` | Revoca una sesión puntual (ej: "cerrar sesión" en otro dispositivo). |
-| POST | `/auth/email-verification/request` | Reenvía el código de verificación de email. |
-| POST | `/auth/email-verification/confirm` | Confirma el email con el código recibido. |
-| POST | `/auth/password-reset/request` | Solicita reseteo de contraseña (recibe el email, genera un token temporal). |
-| POST | `/auth/password-reset/confirm` | Confirma el reseteo con el token recibido y la nueva contraseña. |
+| POST | `/auth/email-verification/request` | Reenvía el código de verificación de email para una cuenta *ya existente* que cambió de mail (ver `PUT /users/{id}`). |
+| POST | `/auth/email-verification/confirm` | Confirma ese cambio de mail con `{email, code}`. Máximo 5 intentos por código antes de forzar un reenvío. |
+| POST | `/auth/password-reset/request` | Manda un código de 6 dígitos por mail para resetear la contraseña. |
+| POST | `/auth/password-reset/confirm` | Confirma con `{email, code, new_password}`. Mismo límite de 5 intentos. |
 | GET | `/users/{id}` | Obtiene el perfil del usuario (sólo el propio usuario autenticado). |
-| PUT | `/users/{id}` | Actualiza email y/o teléfono del propio usuario (dispara re-verificación si cambian). |
+| PUT | `/users/{id}` | Actualiza email, teléfono, nombre y/o apellido del propio usuario (dispara re-verificación si cambian email/teléfono). |
 | DELETE | `/users/{id}` | Elimina (soft-delete) la cuenta propia. Requiere confirmar la contraseña actual. |
 | GET | `/livez` / `/readyz` | Health checks (proceso vivo / conectividad a la DB). |
 
@@ -36,6 +41,10 @@ users
 ├── id                  UUID (PK)
 ├── email               VARCHAR UNIQUE
 ├── phone               VARCHAR UNIQUE NULL
+├── first_name          VARCHAR NULL
+├── last_name           VARCHAR NULL
+├── dni                 VARCHAR UNIQUE NULL
+├── birth_date          DATE NULL
 ├── password_hash       TEXT
 ├── email_verified       BOOLEAN
 ├── phone_verified       BOOLEAN
@@ -43,6 +52,17 @@ users
 ├── created_at
 ├── updated_at
 └── last_login_at
+
+registration_verifications
+├── id                  UUID (PK)
+├── type                EMAIL / PHONE
+├── target              VARCHAR (el email o teléfono en sí -- todavía no hay user_id, la cuenta no existe)
+├── token_hash          VARCHAR (sha256 del código)
+├── attempts
+├── verified_at         DATETIME NULL (se llena al confirmar; extiende expires_at ~30 min más para terminar el wizard)
+├── expires_at
+├── used_at             DATETIME NULL (se marca cuando `POST /auth/register` lo consume)
+└── created_at
 
 refresh_tokens
 ├── id                  UUID (PK)
@@ -60,15 +80,18 @@ verification_tokens
 ├── id                  UUID (PK)
 ├── user_id             FK -> users.id
 ├── type                EMAIL / PHONE / PASSWORD_RESET
-├── token_hash          VARCHAR (sha256 del token; el token crudo sólo va por email)
+├── token_hash          VARCHAR (sha256 del token/código; el valor crudo sólo va por email)
+├── attempts            INT (intentos fallidos de confirmación; ver más abajo)
 ├── expires_at
 ├── used_at
 └── created_at
 ```
 
-`phone_verified` existe en el modelo pero **no hay flujo de verificación por SMS todavía**
-(no se definió proveedor). Cuando se elija uno (Twilio, etc.) se agrega un endpoint análogo
-a `email-verification`.
+Los tres tipos (`EMAIL`, `PHONE`, `PASSWORD_RESET`) son códigos numéricos de 6 dígitos que el
+usuario tipea en la app — no hay ningún link clickeable en el sistema. `verification_tokens`
+sirve a cuentas que **ya existen** (cambiar de mail/teléfono, resetear contraseña);
+`registration_verifications` es exclusivamente para verificar mail/teléfono **antes** de que la
+cuenta exista (el wizard de registro).
 
 ### Decisiones de diseño
 
@@ -85,12 +108,24 @@ a `email-verification`.
 - **Verificación de email obligatoria para loguear** (configurable con `SKIP_EMAIL_VERIFICATION=true`
   para desarrollo/tests). Un usuario `SUSPENDED` no puede loguearse; uno `DELETED` da el mismo
   error genérico que credenciales inválidas (no revela que la cuenta existió).
+- **Verificación por código, no por link**: un código de 6 dígitos son sólo ~1M combinaciones,
+  así que todo `*/confirm` exige el email o teléfono además del `code` (busca el token/fila
+  activa de *ese* target puntual, no compara contra todos los códigos activos del sistema) y
+  lleva un contador `attempts`: al quinto intento fallido el código se invalida y hay que pedir
+  uno nuevo.
+- **El registro es un wizard de 3 pasos, la cuenta nace ya verificada**: `POST /auth/register`
+  ya no crea una cuenta "pendiente de verificar" — exige que `registration_verifications` tenga
+  una fila `verified_at` no nula (y no vencida ni usada) para ese email *y* ese teléfono antes
+  de crear al usuario. Esto significa que nunca existe un usuario a medio verificar en `users`
+  (al margen de `SKIP_EMAIL_VERIFICATION=true`, pensado sólo para dev/tests).
+- **Teléfono obligatorio, no opcional**: a diferencia de la versión anterior, `UserCreate.phone`
+  es requerido — el wizard lo pide siempre como paso 2.
 - **Baja de cuenta = soft delete**: `DELETE /users/{id}` pide la contraseña actual, marca
   `status=DELETED`, anonimiza el email (así ese email vuelve a estar disponible para un
   registro nuevo), limpia el teléfono y revoca todas las sesiones activas. No se borra la fila.
 - **Reset de contraseña revoca todas las sesiones** activas del usuario en todos los dispositivos.
-- **`PUT /users/{id}` sólo actualiza `email`/`phone`**, porque es lo único que vive en la tabla
-  `users` que diste. Ver más abajo la recomendación sobre un servicio de perfil aparte.
+- **`PUT /users/{id}` actualiza `email`/`phone`/`first_name`/`last_name`** (no permite editar
+  `dni` desde acá, no se pidió que sea editable).
 - **Sin roles/permisos todavía**: el esquema de `users` no tiene columna `role`, así que no se
   inventó una. El JWT sólo lleva el `user_id`. Si más adelante necesitás roles (ej. operador de
   un estacionamiento vs. conductor), es un cambio acotado: agregar la columna y usarla en el
@@ -100,20 +135,30 @@ a `email-verification`.
 
 - Passwords con `pbkdf2_sha256` (vía `passlib`), nunca en texto plano.
 - Refresh tokens y tokens de verificación/reset: sólo se persiste su hash SHA-256.
-- Rate limiting básico (60s) para pedidos repetidos de verificación de email / reset de password.
+- Rate limiting básico (60s) para pedidos repetidos de cualquier código (registro, verificación
+  post-login, reset de password).
 - Respuestas genéricas en `password-reset/request` y `email-verification/request` (no revelan
-  si el email existe en el sistema).
+  si el email existe en el sistema). Los endpoints del wizard de registro (`registration/email|phone/request`)
+  sí dicen explícitamente si el email/teléfono ya está registrado — es el comportamiento esperado
+  de un formulario de alta, no una fuga de info sobre una cuenta ajena.
 - El `task-definition.json` que estaba en el repo tenía una **API key real de Resend y
   credenciales de RDS del proyecto Bazaar anterior**, commiteadas en git. Se borró el archivo,
   pero si ese historial se comparte conviene rotar esa key (no es algo que se pueda hacer desde acá).
 
 ## ¿Otro microservicio para el perfil?
 
-**Sí, tiene sentido separarlo.** El `auth-service` debería quedar enfocado únicamente en
-identidad y credenciales (lo que ya tiene: email/teléfono, password, verificación, sesiones).
-Todo lo que sea "perfil" — nombre, foto, vehículos del usuario, medios de pago guardados,
-preferencias — encaja mejor en un `user-profile-service` (o directamente en el dominio que lo
-consume, ej. `booking-service` si es específico de reservas) que:
+**Por ahora no, pero cada vez tiene más sentido a futuro.** El `auth-service` debería quedar
+enfocado únicamente en identidad y credenciales (lo que ya tiene: email/teléfono, password,
+verificación, sesiones). Los campos que no son estrictamente credencial (`first_name`,
+`last_name`, `dni`, `birth_date`) se agregaron directo a la tabla `users` porque son parte del
+alta de identidad del wizard de registro, no "perfil" en el sentido de personalización — pero
+`dni`/`birth_date` ya son datos sensibles (PII fuerte) que en un sistema más maduro
+probablemente vale la pena aislar con controles de acceso propios en vez de vivir junto a
+`password_hash`. El punto de separar sigue en pie, con más urgencia ahora que antes, apenas
+aparezcan más campos de perfil — foto, vehículos del
+usuario, medios de pago guardados, preferencias — que encajan mejor en un `user-profile-service`
+(o directamente en el dominio que lo consume, ej. `booking-service` si es específico de reservas)
+que:
 
 - referencia al usuario por `user_id` (UUID) sin duplicar credenciales,
 - puede evolucionar su esquema sin tocar el servicio de autenticación,

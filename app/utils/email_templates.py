@@ -1,8 +1,7 @@
 """Email templates for ParkLink (sent via Brevo), styled to match landing-webpage."""
 
-from urllib.parse import quote
+from typing import Optional
 
-from app.config import settings
 from app.utils.brand import (
     BORDER,
     GRAY_BG,
@@ -48,10 +47,15 @@ def _base_template(
     preheader: str,
     greeting: str,
     message_html: str,
-    button_label: str,
-    button_url: str,
     expiration_text: str,
+    button_label: Optional[str] = None,
+    button_url: Optional[str] = None,
 ) -> str:
+    action_block = (
+        f"{_button(button_label, button_url)}{_fallback_link(button_url)}"
+        if button_url
+        else ""
+    )
     return f"""
 <!DOCTYPE html>
 <html lang="es">
@@ -80,8 +84,7 @@ def _base_template(
           </tr>
           <tr>
             <td style="padding: 4px 36px 8px; text-align: center;">
-              {_button(button_label, button_url)}
-              {_fallback_link(button_url)}
+              {action_block}
               <p style="font-size: 12.5px; color: #9A6B00; background-color: #FFF6E0; border: 1px solid #F5E2AD; border-radius: 6px; padding: 10px 14px; margin: 0;">
                 {expiration_text}
               </p>
@@ -113,25 +116,39 @@ def _base_template(
 """
 
 
-def get_verification_email_html(verification_token: str) -> str:
-    url = f"{settings.PUBLIC_BASE_URL}/auth/verify-email?token={quote(verification_token)}"
+def get_verification_email_html(code: str) -> str:
+    code_block = f"""
+    <div style="font-family: {FONT_STACK}; font-size: 34px; font-weight: 700; letter-spacing: 10px;
+                color: {NAVY}; background-color: {GRAY_BG}; border: 1px solid {BORDER};
+                border-radius: 10px; padding: 16px 10px; margin: 18px 0; text-align: center;">
+      {code}
+    </div>
+    """
     return _base_template(
-        preheader="Activá tu cuenta de ParkLink para empezar a reservar cocheras.",
+        preheader="Tu código para activar tu cuenta de ParkLink.",
         greeting="¡Bienvenido a ParkLink!",
-        message_html="<p style='margin:0;'>Ya casi está. Activá tu cuenta para empezar a reservar y publicar cocheras en tu ciudad.</p>",
-        button_label="Activar cuenta",
-        button_url=url,
-        expiration_text="Este link vence en 24 horas.",
+        message_html=(
+            "<p style='margin:0;'>Ingresá este código en la app para activar tu cuenta y "
+            f"empezar a reservar y publicar cocheras en tu ciudad:</p>{code_block}"
+        ),
+        expiration_text="Este código vence en 15 minutos.",
     )
 
 
-def get_reset_password_email_html(reset_token: str) -> str:
-    url = f"{settings.PUBLIC_BASE_URL}/auth/reset-password?token={quote(reset_token)}"
+def get_reset_password_email_html(code: str) -> str:
+    code_block = f"""
+    <div style="font-family: {FONT_STACK}; font-size: 34px; font-weight: 700; letter-spacing: 10px;
+                color: {NAVY}; background-color: {GRAY_BG}; border: 1px solid {BORDER};
+                border-radius: 10px; padding: 16px 10px; margin: 18px 0; text-align: center;">
+      {code}
+    </div>
+    """
     return _base_template(
-        preheader="Restablecé tu contraseña de ParkLink.",
+        preheader="Tu código para restablecer tu contraseña de ParkLink.",
         greeting="Restablecé tu contraseña",
-        message_html="<p style='margin:0;'>Recibimos una solicitud para restablecer tu contraseña. Hacé clic en el botón para elegir una nueva.</p>",
-        button_label="Restablecer contraseña",
-        button_url=url,
-        expiration_text="Este link vence en 30 minutos.",
+        message_html=(
+            "<p style='margin:0;'>Recibimos una solicitud para restablecer tu contraseña. "
+            f"Ingresá este código en la app para elegir una nueva:</p>{code_block}"
+        ),
+        expiration_text="Este código vence en 30 minutos.",
     )

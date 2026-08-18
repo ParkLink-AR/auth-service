@@ -2,23 +2,20 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app import models, schemas, security
+from app import models
 from app.api.dependencies import get_current_user
 from app.database import get_db
-from app.exceptions.handler import ServiceException
-from app.models import VerificationTokenType
-from app.repositories import tokens as tokens_repository
 from app.services import auth_service
-from app.utils import html_pages
 from app.schemas.schemas import (
     EmailVerificationConfirm,
     EmailVerificationRequest,
     LogoutRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
+    PhoneRegistrationConfirm,
+    PhoneRegistrationRequest,
     RefreshRequest,
     SessionOut,
     Token,
@@ -33,6 +30,31 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=UserOut, status_code=201)
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     return auth_service.register(payload, db)
+
+
+# -------------------------
+# Registration wizard: verify email, then phone, before the account exists
+# -------------------------
+
+
+@router.post("/registration/email/request", response_model=dict)
+def request_email_registration(payload: EmailVerificationRequest, db: Session = Depends(get_db)):
+    return auth_service.request_email_registration(payload, db)
+
+
+@router.post("/registration/email/confirm", response_model=dict)
+def confirm_email_registration(payload: EmailVerificationConfirm, db: Session = Depends(get_db)):
+    return auth_service.confirm_email_registration(payload, db)
+
+
+@router.post("/registration/phone/request", response_model=dict)
+def request_phone_registration(payload: PhoneRegistrationRequest, db: Session = Depends(get_db)):
+    return auth_service.request_phone_registration(payload, db)
+
+
+@router.post("/registration/phone/confirm", response_model=dict)
+def confirm_phone_registration(payload: PhoneRegistrationConfirm, db: Session = Depends(get_db)):
+    return auth_service.confirm_phone_registration(payload, db)
 
 
 @router.post("/login", response_model=Token)
@@ -88,38 +110,3 @@ def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(
 @router.post("/password-reset/confirm", response_model=dict)
 def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
     return auth_service.confirm_password_reset(payload, db)
-
-
-# -------------------------
-# Browser-facing pages linked from emails
-# -------------------------
-
-
-@router.get("/verify-email", response_class=HTMLResponse, include_in_schema=False)
-def verify_email_page(token: str, db: Session = Depends(get_db)):
-    try:
-        auth_service.confirm_email_verification(EmailVerificationConfirm(token=token), db)
-    except ServiceException:
-        return HTMLResponse(
-            html_pages.get_invalid_link_page(
-                "Este link de activación venció o ya fue utilizado. Volvé a la app y pedí un nuevo email de verificación."
-            ),
-            status_code=400,
-        )
-    return HTMLResponse(html_pages.get_email_verified_page())
-
-
-@router.get("/reset-password", response_class=HTMLResponse, include_in_schema=False)
-def reset_password_page(token: str, db: Session = Depends(get_db)):
-    token_hash = security.hash_token(token)
-    valid = tokens_repository.get_valid_verification_token(
-        db, token_hash, VerificationTokenType.PASSWORD_RESET
-    )
-    if not valid:
-        return HTMLResponse(
-            html_pages.get_invalid_link_page(
-                "Este link para restablecer tu contraseña venció o ya fue utilizado. Volvé a la app y pedí uno nuevo."
-            ),
-            status_code=400,
-        )
-    return HTMLResponse(html_pages.get_reset_password_form_page(token))
