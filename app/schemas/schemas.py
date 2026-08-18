@@ -159,6 +159,9 @@ class UserOut(BaseModel):
     id: UUID
     email: EmailStr
     phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     email_verified: bool
     phone_verified: bool
     status: UserStatus
@@ -172,6 +175,9 @@ class UserOut(BaseModel):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[PhoneStr] = None
+    first_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]] = None
+    last_name: Optional[Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]] = None
+    avatar_url: Optional[str] = None
 
     @field_validator("email")
     @classmethod

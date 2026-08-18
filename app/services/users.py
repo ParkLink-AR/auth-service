@@ -62,6 +62,10 @@ def update_user(user_id, payload: schemas.UserUpdate, db: Session, current_user:
         current_user.phone = new_phone
         current_user.phone_verified = False
 
+    for field in ("first_name", "last_name", "avatar_url"):
+        if field in update_data:
+            setattr(current_user, field, update_data[field])
+
     try:
         users_repository.save(db, current_user)
     except Exception as e:
