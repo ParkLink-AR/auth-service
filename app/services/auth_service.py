@@ -45,20 +45,29 @@ def _check_rate_limit(db: Session, user_id: UUID, token_type: VerificationTokenT
         )
 
 
-def issue_email_verification_code(db: Session, user: models.User) -> str:
-    """Issues a 6-digit email verification code (invalidating any previous
-    active one), used both at registration and on-demand resend/email-change."""
-    tokens_repository.invalidate_active_tokens(db, user.id, VerificationTokenType.EMAIL)
+def issue_code_for_user(
+    db: Session, user_id: UUID, token_type: VerificationTokenType, expire_minutes: int
+) -> str:
+    """Issues a 6-digit code of the given type for an existing user
+    (invalidating any previous active one of the same type first)."""
+    tokens_repository.invalidate_active_tokens(db, user_id, token_type)
     code = security.generate_numeric_code()
     token = models.VerificationToken(
-        user_id=user.id,
-        type=VerificationTokenType.EMAIL,
+        user_id=user_id,
+        type=token_type,
         token_hash=security.hash_token(code),
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(minutes=settings.EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=expire_minutes),
     )
     tokens_repository.create_verification_token(db, token)
     return code
+
+
+def issue_email_verification_code(db: Session, user: models.User) -> str:
+    """Issues a 6-digit email verification code, used both at registration
+    and on-demand resend."""
+    return issue_code_for_user(
+        db, user.id, VerificationTokenType.EMAIL, settings.EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES
+    )
 
 
 def _issue_token_pair(db: Session, user: models.User, device: schemas.DeviceInfo, request: Request | None) -> schemas.Token:

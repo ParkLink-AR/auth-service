@@ -205,6 +205,41 @@ class PhoneRegistrationConfirm(BaseModel):
         return v
 
 
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+
+    @field_validator("new_email")
+    @classmethod
+    def email_to_lower(cls, v: EmailStr) -> str:
+        return _normalize_email(v)
+
+
+class EmailChangeConfirm(BaseModel):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=6)]
+
+    @field_validator("code")
+    @classmethod
+    def code_is_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise PydanticCustomError("invalid_code", "Code must be 6 digits")
+        return v
+
+
+class PhoneChangeRequest(BaseModel):
+    new_phone: PhoneE164Str
+
+
+class PhoneChangeConfirm(BaseModel):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=6)]
+
+    @field_validator("code")
+    @classmethod
+    def code_is_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise PydanticCustomError("invalid_code", "Code must be 6 digits")
+        return v
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -269,15 +304,13 @@ class UserOut(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    phone: Optional[PhoneStr] = None
+    """Profile fields editable in one shot. Email and phone are deliberately
+    excluded -- each has its own request/confirm endpoints (see
+    EmailChangeRequest/PhoneChangeRequest) since changing either requires
+    verifying the new value before it takes effect."""
+
     first_name: Optional[NameStr] = None
     last_name: Optional[NameStr] = None
-
-    @field_validator("email")
-    @classmethod
-    def email_to_lower(cls, v: Optional[EmailStr]) -> Optional[str]:
-        return _normalize_email(v) if v else v
 
 
 class AccountDeleteRequest(BaseModel):

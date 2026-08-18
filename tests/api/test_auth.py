@@ -453,9 +453,9 @@ def test_password_reset_confirm_tracks_failed_attempts(client, test_user, db):
 
 
 # -------------------------
-# Post-login email re-verification (email change via PUT /users/{id}) --
-# `/auth/email-verification/*` still backs that flow; test_user.py covers
-# the update-email side, this covers the confirm-endpoint mechanics.
+# Post-login email re-verification (resending a code to an unverified
+# account's current address -- unrelated to changing to a new email, which
+# is /users/{id}/email/*, covered in test_user.py).
 # -------------------------
 
 

@@ -135,6 +135,25 @@ def get_verification_email_html(code: str) -> str:
     )
 
 
+def get_email_change_email_html(code: str) -> str:
+    code_block = f"""
+    <div style="font-family: {FONT_STACK}; font-size: 34px; font-weight: 700; letter-spacing: 10px;
+                color: {NAVY}; background-color: {GRAY_BG}; border: 1px solid {BORDER};
+                border-radius: 10px; padding: 16px 10px; margin: 18px 0; text-align: center;">
+      {code}
+    </div>
+    """
+    return _base_template(
+        preheader="Tu código para confirmar tu nuevo email de ParkLink.",
+        greeting="Confirmá tu nuevo email",
+        message_html=(
+            "<p style='margin:0;'>Recibimos una solicitud para cambiar el email de tu cuenta a "
+            f"esta dirección. Ingresá este código en la app para confirmarlo:</p>{code_block}"
+        ),
+        expiration_text="Este código vence en 15 minutos.",
+    )
+
+
 def get_reset_password_email_html(code: str) -> str:
     code_block = f"""
     <div style="font-family: {FONT_STACK}; font-size: 34px; font-weight: 700; letter-spacing: 10px;

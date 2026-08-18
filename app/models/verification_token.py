@@ -12,6 +12,8 @@ class VerificationTokenType(str, enum.Enum):
     EMAIL = "EMAIL"
     PHONE = "PHONE"
     PASSWORD_RESET = "PASSWORD_RESET"
+    EMAIL_CHANGE = "EMAIL_CHANGE"
+    PHONE_CHANGE = "PHONE_CHANGE"
 
 
 class VerificationToken(Base):

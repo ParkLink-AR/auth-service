@@ -6,6 +6,7 @@ from loguru import logger
 from app.config import settings
 from app.exceptions.handler import ServiceException
 from .email_templates import (
+    get_email_change_email_html,
     get_reset_password_email_html,
     get_verification_email_html,
 )
@@ -65,6 +66,18 @@ def send_verification_email(to_email: str, code: str) -> None:
     send_email_html(
         to_email=to_email,
         subject="Verificá tu cuenta - ParkLink",
+        html_body=html_content,
+    )
+
+
+def send_email_change_email(to_email: str, code: str) -> None:
+    if not settings.BREVO_API_KEY:
+        logger.info(f"[MAIL][DEV] Código de cambio de email para {to_email}: {code}")
+
+    html_content = get_email_change_email_html(code)
+    send_email_html(
+        to_email=to_email,
+        subject="Confirmá tu nuevo email - ParkLink",
         html_body=html_content,
     )
 

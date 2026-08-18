@@ -20,6 +20,11 @@ class User(Base):
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     phone = Column(String(30), unique=True, nullable=True, index=True)
+    # Set while an email/phone change is awaiting code confirmation; the
+    # column above only gets overwritten once the new address/number is
+    # actually verified (see users_service.confirm_email_change/confirm_phone_change).
+    pending_email = Column(String(255), nullable=True)
+    pending_phone = Column(String(30), nullable=True)
     first_name = Column(String(80), nullable=True)
     last_name = Column(String(80), nullable=True)
     dni = Column(String(20), unique=True, nullable=True, index=True)
