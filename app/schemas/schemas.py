@@ -284,6 +284,7 @@ class UserOut(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     dni: Optional[str] = None
+    avatar_url: Optional[str] = None
     birth_date: Optional[date] = None
     email_verified: bool
     phone_verified: bool

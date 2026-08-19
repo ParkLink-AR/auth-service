@@ -1,7 +1,7 @@
 from __future__ import annotations
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -28,6 +28,16 @@ def update_user(
     current_user: models.User = Depends(get_current_user),
 ):
     return users_service.update_user(id, payload, db, current_user)
+
+
+@router.post("/{id}/avatar", response_model=schemas.UserOut)
+async def update_avatar(
+    id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return await users_service.update_avatar(id, file, db, current_user)
 
 
 @router.post("/{id}/email", response_model=dict)

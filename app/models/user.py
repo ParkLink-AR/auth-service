@@ -25,6 +25,7 @@ class User(Base):
     # actually verified (see users_service.confirm_email_change/confirm_phone_change).
     pending_email = Column(String(255), nullable=True)
     pending_phone = Column(String(30), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
     first_name = Column(String(80), nullable=True)
     last_name = Column(String(80), nullable=True)
     dni = Column(String(20), unique=True, nullable=True, index=True)

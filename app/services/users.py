@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 from uuid import uuid4
 
+from fastapi import UploadFile
 from loguru import logger
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.models import UserStatus, VerificationTokenType
 from app.repositories import tokens as tokens_repository
 from app.repositories import users as users_repository
 from app.services import auth_service
+from app.utils.avatar import delete_avatar_file, save_avatar
 from app.utils.email import send_email_change_email
 from app.utils.sms import send_registration_sms
 
@@ -50,6 +52,21 @@ def update_user(user_id, payload: schemas.UserUpdate, db: Session, current_user:
         )
 
     logger.info(f"[USERS] Perfil actualizado: user_id={current_user.id}")
+    return current_user
+
+
+async def update_avatar(
+    user_id, file: UploadFile, db: Session, current_user: models.User
+) -> models.User:
+    _require_self(user_id, current_user)
+
+    new_url = await save_avatar(current_user.id, file)
+    old_url = current_user.avatar_url
+    current_user.avatar_url = new_url
+    users_repository.save(db, current_user)
+    delete_avatar_file(old_url)
+
+    logger.info(f"[USERS] Foto de perfil actualizada: user_id={current_user.id}")
     return current_user
 
 

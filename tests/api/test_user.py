@@ -1,8 +1,19 @@
+import shutil
 import uuid
 from datetime import date
 
+import pytest
+
 from app.models import User, VerificationToken, VerificationTokenType
 from app.security import hash_password, hash_token
+
+
+@pytest.fixture(autouse=True)
+def _clean_avatars_dir():
+    from app.utils.avatar import AVATARS_DIR
+
+    yield
+    shutil.rmtree(AVATARS_DIR, ignore_errors=True)
 
 
 def _login(client, test_user):
@@ -164,6 +175,141 @@ def test_phone_change_confirm_tracks_failed_attempts(client, test_user, db):
 
     right = client.post(f"/users/{test_user.id}/phone/confirm", json={"code": "654321"}, headers=headers)
     assert right.status_code == 200
+
+
+# -------------------------
+# Avatar upload
+# -------------------------
+
+
+def _fake_image_bytes(fmt: str = "PNG", size=(64, 64)) -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", size, color=(200, 30, 40)).save(buf, format=fmt)
+    return buf.getvalue()
+
+
+def test_upload_avatar(client, test_user):
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers=headers,
+        files={"file": ("avatar.png", _fake_image_bytes(), "image/png")},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["avatar_url"].startswith("/static/avatars/")
+
+    profile = client.get(f"/users/{test_user.id}", headers=headers).json()
+    assert profile["avatar_url"] == body["avatar_url"]
+
+
+def test_upload_avatar_replaces_previous_file(client, test_user):
+    from app.utils.avatar import AVATARS_DIR
+
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers=headers,
+        files={"file": ("avatar.png", _fake_image_bytes(), "image/png")},
+    )
+    first_filename = first.json()["avatar_url"].rsplit("/", 1)[-1]
+    assert (AVATARS_DIR / first_filename).exists()
+
+    second = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers=headers,
+        files={"file": ("avatar2.png", _fake_image_bytes(size=(80, 80)), "image/png")},
+    )
+    second_filename = second.json()["avatar_url"].rsplit("/", 1)[-1]
+
+    assert second_filename != first_filename
+    assert not (AVATARS_DIR / first_filename).exists()
+    assert (AVATARS_DIR / second_filename).exists()
+    (AVATARS_DIR / second_filename).unlink(missing_ok=True)
+
+
+def test_upload_avatar_rejects_wrong_content_type(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("avatar.gif", _fake_image_bytes(fmt="GIF"), "image/gif")},
+    )
+    assert response.status_code == 400
+
+
+def test_upload_avatar_rejects_file_disguised_as_image(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("avatar.png", b"not actually a png", "image/png")},
+    )
+    assert response.status_code == 400
+
+
+def _fake_noise_image_bytes(size=(2000, 2000)) -> bytes:
+    # Random pixel data barely compresses under PNG's DEFLATE, unlike a flat
+    # fill (which would collapse to a few KB regardless of dimensions) -- this
+    # is what actually produces bytes over the size limit.
+    import os
+    from io import BytesIO
+
+    from PIL import Image
+
+    width, height = size
+    data = os.urandom(width * height * 3)
+    buf = BytesIO()
+    Image.frombytes("RGB", size, data).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_upload_avatar_rejects_oversized_file(client, test_user):
+    from app.utils import avatar as avatar_module
+
+    token = _login(client, test_user)
+    oversized = _fake_noise_image_bytes()
+    assert len(oversized) > avatar_module.MAX_AVATAR_SIZE_BYTES
+
+    response = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("avatar.png", oversized, "image/png")},
+    )
+    assert response.status_code == 400
+
+
+def test_upload_avatar_requires_self(client, test_user, db):
+    other = User(
+        email="otheravatar@example.com",
+        phone="+5491100002233",
+        first_name="Other",
+        last_name="User",
+        dni="30222333",
+        birth_date=date(1990, 1, 1),
+        password_hash=hash_password("Password123"),
+        email_verified=True,
+        phone_verified=True,
+    )
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{other.id}/avatar",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("avatar.png", _fake_image_bytes(), "image/png")},
+    )
+    assert response.status_code == 403
 
 
 def test_delete_account_requires_correct_password(client, test_user):

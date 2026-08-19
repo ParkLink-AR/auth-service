@@ -10,7 +10,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN useradd -m authuser && chown -R authuser /app
+# app/static/avatars needs to exist (owned by authuser) *before* the volume
+# mount defined in compose.yaml overlays it -- otherwise Docker initializes
+# the named volume from a root-owned mountpoint and uploads fail with EACCES.
+RUN mkdir -p app/static/avatars && useradd -m authuser && chown -R authuser /app
 USER authuser
 
 EXPOSE 8000

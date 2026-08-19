@@ -13,3 +13,5 @@ email-validator
 loguru==0.7.2
 pydantic-settings==2.13.1
 alembic==1.14.0
+python-multipart==0.0.9
+Pillow==11.0.0
