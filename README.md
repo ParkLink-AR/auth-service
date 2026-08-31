@@ -193,7 +193,8 @@ docker compose up --build
 ```
 
 Esto levanta Postgres (`db-auth`, puerto `5433`) y el servicio (puerto `8000`). Al iniciar,
-`auth-service` corre `alembic upgrade head` automáticamente antes de levantar FastAPI.
+`auth-service` crea el esquema directo desde los modelos (`Base.metadata.create_all`)
+antes de levantar FastAPI -- no hay migraciones que correr.
 
 ### Local (sin Docker)
 
@@ -245,5 +246,4 @@ app/
 ├── services/        # lógica de negocio (auth_service.py, users.py)
 ├── utils/          # email.py (Brevo), email_templates.py
 ├── config.py, database.py, security.py
-alembic/            # migraciones (genera el esquema desde los modelos)
 ```

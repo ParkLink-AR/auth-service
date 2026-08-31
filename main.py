@@ -6,20 +6,22 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 from loguru import logger
 
-from app.database import SessionLocal
+from app.database import Base, SessionLocal, engine
 from app import models
 from app.api import auth, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
-from app.alembic_utils import run_migrations
 
 setup_logger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    run_migrations()
+    # No hay datos reales que preservar en ningún ambiente todavía, así que
+    # el esquema se crea directo desde los modelos en vez de mantener un
+    # historial de migraciones -- create_all no toca tablas que ya existen.
+    Base.metadata.create_all(bind=engine)
     logger.info("[STARTUP] ParkLink Auth Service iniciado")
     yield
     logger.info("[SHUTDOWN] ParkLink Auth Service detenido")
