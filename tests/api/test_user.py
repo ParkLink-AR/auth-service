@@ -1,4 +1,3 @@
-import shutil
 import uuid
 from datetime import date
 
@@ -7,13 +6,31 @@ import pytest
 from app.models import User, VerificationToken, VerificationTokenType
 from app.security import hash_password, hash_token
 
+FAKE_R2_PUBLIC_URL = "https://fake-bucket.test"
+
 
 @pytest.fixture(autouse=True)
-def _clean_avatars_dir():
-    from app.utils.avatar import AVATARS_DIR
+def _fake_storage(monkeypatch):
+    """Avatars go through app.utils.storage (R2/S3) now instead of local
+    disk -- tests fake that boundary with an in-memory dict instead of
+    hitting the network, keyed the same way storage.upload_bytes's returned
+    URL would decode (see app/utils/storage.py)."""
+    from app.utils import storage
 
-    yield
-    shutil.rmtree(AVATARS_DIR, ignore_errors=True)
+    store: dict[str, bytes] = {}
+
+    def fake_upload_bytes(key: str, data: bytes, content_type: str) -> str:
+        store[key] = data
+        return f"{FAKE_R2_PUBLIC_URL}/{key}"
+
+    def fake_delete_object(url: str | None) -> None:
+        if not url or not url.startswith(f"{FAKE_R2_PUBLIC_URL}/"):
+            return
+        store.pop(url[len(FAKE_R2_PUBLIC_URL) + 1 :], None)
+
+    monkeypatch.setattr(storage, "upload_bytes", fake_upload_bytes)
+    monkeypatch.setattr(storage, "delete_object", fake_delete_object)
+    yield store
 
 
 def _login(client, test_user):
@@ -203,15 +220,13 @@ def test_upload_avatar(client, test_user):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["avatar_url"].startswith("/static/avatars/")
+    assert body["avatar_url"].startswith(f"{FAKE_R2_PUBLIC_URL}/avatars/")
 
     profile = client.get(f"/users/{test_user.id}", headers=headers).json()
     assert profile["avatar_url"] == body["avatar_url"]
 
 
-def test_upload_avatar_replaces_previous_file(client, test_user):
-    from app.utils.avatar import AVATARS_DIR
-
+def test_upload_avatar_replaces_previous_file(client, test_user, _fake_storage):
     token = _login(client, test_user)
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -220,20 +235,19 @@ def test_upload_avatar_replaces_previous_file(client, test_user):
         headers=headers,
         files={"file": ("avatar.png", _fake_image_bytes(), "image/png")},
     )
-    first_filename = first.json()["avatar_url"].rsplit("/", 1)[-1]
-    assert (AVATARS_DIR / first_filename).exists()
+    first_key = first.json()["avatar_url"].removeprefix(f"{FAKE_R2_PUBLIC_URL}/")
+    assert first_key in _fake_storage
 
     second = client.post(
         f"/users/{test_user.id}/avatar",
         headers=headers,
         files={"file": ("avatar2.png", _fake_image_bytes(size=(80, 80)), "image/png")},
     )
-    second_filename = second.json()["avatar_url"].rsplit("/", 1)[-1]
+    second_key = second.json()["avatar_url"].removeprefix(f"{FAKE_R2_PUBLIC_URL}/")
 
-    assert second_filename != first_filename
-    assert not (AVATARS_DIR / first_filename).exists()
-    assert (AVATARS_DIR / second_filename).exists()
-    (AVATARS_DIR / second_filename).unlink(missing_ok=True)
+    assert second_key != first_key
+    assert first_key not in _fake_storage
+    assert second_key in _fake_storage
 
 
 def test_upload_avatar_rejects_wrong_content_type(client, test_user):

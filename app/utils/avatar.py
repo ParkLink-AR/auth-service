@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import io
 import uuid
-from pathlib import Path
 from uuid import UUID
 
 from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from app.exceptions.handler import ServiceException
+from app.utils import storage
 
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 AVATAR_MAX_DIMENSION = 512  # re-encoded, longest side capped at this many px
-
-AVATARS_DIR = Path(__file__).resolve().parent.parent / "static" / "avatars"
 
 
 async def save_avatar(user_id: UUID, file: UploadFile) -> str:
@@ -65,16 +63,13 @@ async def save_avatar(user_id: UUID, file: UploadFile) -> str:
     image = Image.open(io.BytesIO(raw)).convert("RGB")
     image.thumbnail((AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION))
 
-    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"{user_id}-{uuid.uuid4().hex[:8]}.jpg"
-    image.save(AVATARS_DIR / filename, format="JPEG", quality=85)
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=85)
 
-    return f"/static/avatars/{filename}"
+    return storage.upload_bytes(f"avatars/{filename}", buffer.getvalue(), "image/jpeg")
 
 
 def delete_avatar_file(avatar_url: str | None) -> None:
     """Best-effort cleanup of the previous avatar file when it's replaced."""
-    if not avatar_url or not avatar_url.startswith("/static/avatars/"):
-        return
-    path = AVATARS_DIR / Path(avatar_url).name
-    path.unlink(missing_ok=True)
+    storage.delete_object(avatar_url)

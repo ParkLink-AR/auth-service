@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # Skips email verification requirement at login (useful for local dev/tests)
     SKIP_EMAIL_VERIFICATION: bool = False
 
+    # Cloudflare R2 (S3-compatible object storage) -- avatars are uploaded
+    # here instead of local disk, which doesn't survive a Render redeploy.
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET_NAME: str = ""
+    R2_PUBLIC_URL: str = ""
+
     # Email/SMS verification are 6-digit codes the user types in the app, not
     # a clicked link -- keep their lifetime short.
     EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES: int = 15

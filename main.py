@@ -1,10 +1,7 @@
-from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 from loguru import logger
@@ -40,12 +37,6 @@ app.add_middleware(
 )
 
 app.add_exception_handler(ServiceException, problem_details_handler)
-
-app.mount(
-    "/static",
-    StaticFiles(directory=Path(__file__).parent / "app" / "static"),
-    name="static",
-)
 
 
 @app.exception_handler(RequestValidationError)
