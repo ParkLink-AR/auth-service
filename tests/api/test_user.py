@@ -357,3 +357,25 @@ def test_delete_account_soft_deletes_and_revokes_sessions(client, test_user):
         "/auth/login", json={"email": test_user.email, "password": "Password123"}
     )
     assert login_response.status_code == 401
+
+
+def test_delete_account_removes_avatar_from_storage(client, test_user, _fake_storage):
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    upload = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers=headers,
+        files={"file": ("avatar.png", _fake_image_bytes(), "image/png")},
+    )
+    key = upload.json()["avatar_url"].removeprefix(f"{FAKE_R2_PUBLIC_URL}/")
+    assert key in _fake_storage
+
+    response = client.request(
+        "DELETE",
+        f"/users/{test_user.id}",
+        json={"password": "Password123"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert key not in _fake_storage

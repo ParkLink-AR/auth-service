@@ -261,9 +261,12 @@ def delete_user(user_id, payload: schemas.AccountDeleteRequest, db: Session, cur
             status_code=401, title="Unauthorized", detail="Incorrect password."
         )
 
+    delete_avatar_file(current_user.avatar_url)
+
     current_user.status = UserStatus.DELETED
     current_user.email = f"deleted-{uuid4().hex}@deleted.parklink.app"
     current_user.phone = None
+    current_user.avatar_url = None
     current_user.password_hash = security.hash_password(uuid4().hex)
     users_repository.save(db, current_user)
 
