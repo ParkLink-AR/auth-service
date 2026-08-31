@@ -33,6 +33,23 @@ def _fake_storage(monkeypatch):
     yield store
 
 
+@pytest.fixture(autouse=True)
+def _fake_parking_client(monkeypatch):
+    """delete_user calls parking-service over real HTTP to wipe the owner's
+    spots -- there's no parking-service to talk to in these tests, so this
+    fakes that boundary too. Records calls so tests can assert on who got
+    deleted."""
+    from app.utils import parking_client
+
+    calls: list = []
+
+    def fake_delete_all_spots_for_owner(owner_id) -> None:
+        calls.append(owner_id)
+
+    monkeypatch.setattr(parking_client, "delete_all_spots_for_owner", fake_delete_all_spots_for_owner)
+    yield calls
+
+
 def _login(client, test_user):
     response = client.post(
         "/auth/login",
@@ -337,7 +354,7 @@ def test_delete_account_requires_correct_password(client, test_user):
     assert response.status_code == 401
 
 
-def test_delete_account_soft_deletes_and_revokes_sessions(client, test_user):
+def test_delete_account_hard_deletes_user_and_wipes_owned_spots(client, test_user, db, _fake_parking_client):
     token = _login(client, test_user)
     response = client.request(
         "DELETE",
@@ -347,16 +364,48 @@ def test_delete_account_soft_deletes_and_revokes_sessions(client, test_user):
     )
     assert response.status_code == 200
 
-    # The access token still decodes, but the dependency must reject non-ACTIVE users.
+    # Row is actually gone, not just flagged -- the dependency looks it up by
+    # id and finds nothing.
+    assert db.query(User).filter_by(id=test_user.id).first() is None
+
     profile_response = client.get(
         f"/users/{test_user.id}", headers={"Authorization": f"Bearer {token}"}
     )
-    assert profile_response.status_code == 403
+    assert profile_response.status_code == 404
 
     login_response = client.post(
         "/auth/login", json={"email": test_user.email, "password": "Password123"}
     )
     assert login_response.status_code == 401
+
+    # parking-service was asked to wipe this owner's spots (+ their R2 photos).
+    assert _fake_parking_client == [test_user.id]
+
+
+def test_delete_account_aborts_if_parking_service_unreachable(client, test_user, db, monkeypatch):
+    from app.exceptions.handler import ServiceException
+    from app.utils import parking_client
+
+    def failing_delete_all_spots_for_owner(owner_id):
+        raise ServiceException(status_code=502, title="Bad Gateway", detail="unreachable")
+
+    monkeypatch.setattr(parking_client, "delete_all_spots_for_owner", failing_delete_all_spots_for_owner)
+
+    token = _login(client, test_user)
+    response = client.request(
+        "DELETE",
+        f"/users/{test_user.id}",
+        json={"password": "Password123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 502
+
+    # Nothing was destroyed -- the account is still there and usable.
+    assert db.query(User).filter_by(id=test_user.id).first() is not None
+    profile_response = client.get(
+        f"/users/{test_user.id}", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert profile_response.status_code == 200
 
 
 def test_delete_account_removes_avatar_from_storage(client, test_user, _fake_storage):

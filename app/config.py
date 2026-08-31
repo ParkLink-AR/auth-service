@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Skips email verification requirement at login (useful for local dev/tests)
     SKIP_EMAIL_VERIFICATION: bool = False
 
+    # Called directly (not through the gateway) when an account is closed
+    # for good, to wipe the owner's parking spots -- see app/utils/parking_client.py.
+    PARKING_SERVICE_URL: str = "http://parking-service:3001"
+
     # Cloudflare R2 (S3-compatible object storage) -- avatars are uploaded
     # here instead of local disk, which doesn't survive a Render redeploy.
     R2_ACCOUNT_ID: str = ""
