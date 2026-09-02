@@ -1,0 +1,7 @@
+line-length = 120
+
+[lint]
+# __init__.py files in this codebase re-export names on purpose (star-imports,
+# names imported only so callers can do `from app.services import users`).
+[lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]

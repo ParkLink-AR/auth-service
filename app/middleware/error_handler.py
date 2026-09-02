@@ -3,7 +3,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from loguru import logger
-import json
 
 
 class ErrorHandlerMiddleware(BaseHTTPMiddleware):
@@ -16,9 +15,7 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
             error_messages = []
 
             for error in errors:
-                field = error.get("loc", [])[-1] if error.get("loc") else "unknown"
                 msg = error.get("msg", "Invalid data")
-
                 error_messages.append(msg)
 
             detail = (

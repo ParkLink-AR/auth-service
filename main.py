@@ -7,7 +7,7 @@ from sqlalchemy import text
 from loguru import logger
 
 from app.database import Base, SessionLocal, engine
-from app import models
+from app import models  # noqa: F401 -- registers all models on Base.metadata for create_all()
 from app.api import auth, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
