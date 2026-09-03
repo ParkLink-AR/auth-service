@@ -304,6 +304,26 @@ class UserOut(BaseModel):
         return f"{self.first_name or ''} {self.last_name or ''}".strip()
 
 
+class PublicUserOut(BaseModel):
+    """What any authenticated user can see about another one -- e.g. a driver
+    checking who owns a spot, or an owner checking who's requesting a
+    booking. Deliberately excludes email/phone/dni: those stay private to
+    the account owner (see UserOut, which _require_self still guards)."""
+
+    id: UUID
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def name(self) -> str:
+        return f"{self.first_name or ''} {self.last_name or ''}".strip()
+
+
 class UserUpdate(BaseModel):
     """Profile fields editable in one shot. Email and phone are deliberately
     excluded -- each has its own request/confirm endpoints (see

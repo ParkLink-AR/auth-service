@@ -12,6 +12,15 @@ from app.services import users as users_service
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+@router.get("/{id}/public-profile", response_model=schemas.PublicUserOut)
+def get_public_profile(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.get_public_profile(id, db)
+
+
 @router.get("/{id}", response_model=schemas.UserOut)
 def get_user(
     id: UUID,

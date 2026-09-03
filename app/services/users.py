@@ -31,6 +31,17 @@ def get_user(user_id, current_user: models.User) -> models.User:
     return current_user
 
 
+def get_public_profile(user_id, db: Session) -> models.User:
+    """Unlike get_user above, this deliberately has no _require_self check --
+    any authenticated user can look up anyone else's public profile (name,
+    avatar, member-since). The router maps this to schemas.PublicUserOut,
+    which is what actually keeps email/phone/dni private."""
+    user = users_repository.get_by_id(db, user_id)
+    if not user:
+        raise ServiceException(status_code=404, title="Not Found", detail="User not found.")
+    return user
+
+
 def update_user(user_id, payload: schemas.UserUpdate, db: Session, current_user: models.User) -> models.User:
     _require_self(user_id, current_user)
 
