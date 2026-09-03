@@ -12,6 +12,7 @@ from app.api import auth, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
+from app.seed import seed_test_users
 
 setup_logger()
 
@@ -22,6 +23,15 @@ async def lifespan(app: FastAPI):
     # el esquema se crea directo desde los modelos en vez de mantener un
     # historial de migraciones -- create_all no toca tablas que ya existen.
     Base.metadata.create_all(bind=engine)
+
+    # Cuentas de prueba fijas (a@test.com / b@test.com). Idempotente: se
+    # garantizan en cada arranque. Ver app/seed.py.
+    seed_db = SessionLocal()
+    try:
+        seed_test_users(seed_db)
+    finally:
+        seed_db.close()
+
     logger.info("[STARTUP] ParkLink Auth Service iniciado")
     yield
     logger.info("[SHUTDOWN] ParkLink Auth Service detenido")
