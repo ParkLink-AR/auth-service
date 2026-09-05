@@ -1,6 +1,8 @@
 # config.py
 from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
+
+INSECURE_SECRET_SUBSTRINGS = ["dev-secret", "change-me", "reemplazar", "secret123", "password", "123456"]
 
 
 class Settings(BaseSettings):
@@ -52,6 +54,20 @@ class Settings(BaseSettings):
     model_config = ConfigDict(
         extra="ignore", env_file=".env", env_file_encoding="utf-8"
     )
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.ENVIRONMENT.lower() == "production":
+            val = self.JWT_SECRET.lower()
+            if len(self.JWT_SECRET) < 32 or any(s in val for s in INSECURE_SECRET_SUBSTRINGS):
+                raise ValueError(
+                    "FATAL: Insecure or default JWT_SECRET configured in production environment."
+                )
+            if self.SKIP_EMAIL_VERIFICATION:
+                raise ValueError(
+                    "FATAL: SKIP_EMAIL_VERIFICATION must be False in production."
+                )
+        return self
 
 
 settings = Settings()
