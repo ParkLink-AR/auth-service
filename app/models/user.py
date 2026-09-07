@@ -14,24 +14,12 @@ class UserStatus(str, enum.Enum):
     DELETED = "DELETED"
 
 
-class AccountType(str, enum.Enum):
-    DRIVER = "DRIVER"
-    OWNER = "OWNER"
-    BOTH = "BOTH"
-
-
 class User(Base):
     __tablename__ = "users"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False, index=True)
     phone = Column(String(30), unique=True, nullable=True, index=True)
-    account_type = Column(
-        Enum(AccountType, name="account_type"),
-        default=AccountType.DRIVER,
-        server_default=AccountType.DRIVER.value,
-        nullable=False,
-    )
     # Set while an email/phone change is awaiting code confirmation; the
     # column above only gets overwritten once the new address/number is
     # actually verified (see users_service.confirm_email_change/confirm_phone_change).
