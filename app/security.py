@@ -39,17 +39,14 @@ def create_access_token(user_id, extra_claims: dict | None = None) -> str:
     }
     if extra_claims:
         to_encode.update(extra_claims)
-    
-    # Support asymmetric keys (RS256/ES256) when configured, falling back to symmetric
-    signing_key = settings.JWT_PRIVATE_KEY if settings.JWT_PRIVATE_KEY else settings.JWT_SECRET
-    return jwt.encode(to_encode, signing_key, algorithm=settings.JWT_ALGORITHM)
+
+    return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict | None:
-    verification_key = settings.JWT_PUBLIC_KEY if settings.JWT_PUBLIC_KEY else settings.JWT_SECRET
     try:
         payload = jwt.decode(
-            token, verification_key, algorithms=[settings.JWT_ALGORITHM]
+            token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
         )
     except JWTError:
         return None

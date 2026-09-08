@@ -11,8 +11,6 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_SECRET: str = "dev-secret-change-me"
-    JWT_PRIVATE_KEY: str = ""
-    JWT_PUBLIC_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30

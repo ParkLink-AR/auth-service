@@ -6,13 +6,14 @@ puede hacer login directo sin pasar por el wizard de registro.
     a@test.com / 11223344Aa
     b@test.com / 11223344Aa
 
-No está gateado por ninguna env var: siempre se inicializan.
+Nunca se llama en producción (ENVIRONMENT=production) -- ver main.py.
 """
 
 from loguru import logger
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import User, UserStatus
 from app.security import hash_password
 
@@ -40,6 +41,10 @@ def seed_test_users(db: Session) -> None:
     """Crea a@test.com y b@test.com si no existen. Seguro de llamar en cada
     startup: chequea por email antes de insertar y tolera colisiones de
     phone/dni (por si alguien registró esos valores a mano)."""
+    if settings.ENVIRONMENT.lower() == "production":
+        logger.error("[SEED] bloqueado: no se siembran cuentas de prueba en producción")
+        return
+
     password_hash = hash_password(TEST_PASSWORD)
 
     for spec in _TEST_USERS:
