@@ -259,6 +259,7 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
         # account never exists in a partially-verified state.
         email_verified=True,
         phone_verified=True,
+        account_type=payload.account_type,
     )
 
     try:

@@ -53,6 +53,9 @@ def update_user(user_id, payload: schemas.UserUpdate, db: Session, current_user:
     if "last_name" in update_data:
         current_user.last_name = update_data["last_name"]
 
+    if "account_type" in update_data:
+        current_user.account_type = update_data["account_type"]
+
     try:
         users_repository.save(db, current_user)
     except Exception as e:

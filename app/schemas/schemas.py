@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, computed_field, field_validator, model_validator, StringConstraints
 from pydantic_core import PydanticCustomError
 
-from app.models.user import UserStatus
+from app.models.user import UserStatus, AccountType
 
 # -------------------------
 # HELPERS (internos)
@@ -122,6 +122,7 @@ class UserCreate(DeviceInfo):
     dni: DniStr
     birth_date: date
     password: str
+    account_type: AccountType = AccountType.DRIVER
 
     @field_validator("email")
     @classmethod
@@ -289,6 +290,7 @@ class UserOut(BaseModel):
     email_verified: bool
     phone_verified: bool
     status: UserStatus
+    account_type: AccountType = AccountType.DRIVER
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
@@ -332,6 +334,7 @@ class UserUpdate(BaseModel):
 
     first_name: Optional[NameStr] = None
     last_name: Optional[NameStr] = None
+    account_type: Optional[AccountType] = None
 
 
 class AccountDeleteRequest(BaseModel):
