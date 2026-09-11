@@ -20,24 +20,18 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "no-reply@mail.parklink.com.ar"
     EMAIL_FROM_NAME: str = "ParkLink Argentina"
 
-    # WhatsApp Cloud API (Meta) -- plain template message, not a 3rd-party
-    # wrapper: we own the code lifecycle ourselves, same as the email flow.
-    # Needs a template approved in Meta Business Manager (WhatsApp Manager)
-    # under category AUTHENTICATION -- Meta writes the body text itself
-    # ("<code> es tu código de verificación."), you only pick the template
-    # name and language when creating it. See app/utils/whatsapp.py.
-    WHATSAPP_ACCESS_TOKEN: str = ""
-    WHATSAPP_PHONE_NUMBER_ID: str = ""
-    WHATSAPP_TEMPLATE_NAME: str = "otp_code"
-    WHATSAPP_TEMPLATE_LANG: str = "es_AR"
-    WHATSAPP_API_VERSION: str = "v21.0"
+    # Twilio (SMS) -- plain SMS send, not Twilio Verify: we own the code
+    # lifecycle ourselves, same as the email flow.
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
 
     # Skips email verification requirement at login (useful for local dev/tests)
     SKIP_EMAIL_VERIFICATION: bool = False
 
     # Skips phone verification at registration -- unlike SKIP_EMAIL_VERIFICATION,
     # this one IS allowed in production (see validate_production_security below).
-    # Useful for local dev/tests without a WhatsApp Business account configured.
+    # Useful for local dev/tests without Twilio configured.
     SKIP_PHONE_VERIFICATION: bool = False
 
     # Called directly (not through the gateway) when an account is closed
@@ -52,7 +46,7 @@ class Settings(BaseSettings):
     R2_BUCKET_NAME: str = ""
     R2_PUBLIC_URL: str = ""
 
-    # Email/WhatsApp verification are 6-digit codes the user types in the app, not
+    # Email/SMS verification are 6-digit codes the user types in the app, not
     # a clicked link -- keep their lifetime short.
     EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES: int = 15
     PHONE_VERIFICATION_CODE_EXPIRE_MINUTES: int = 15

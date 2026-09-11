@@ -16,7 +16,7 @@ from app.services import auth_service
 from app.utils import parking_client
 from app.utils.avatar import delete_avatar_file, save_avatar
 from app.utils.email import send_email_change_email
-from app.utils.whatsapp import send_registration_whatsapp
+from app.utils.sms import send_registration_sms
 
 
 def _require_self(user_id, current_user: models.User) -> None:
@@ -177,7 +177,7 @@ def confirm_email_change(
 
 
 # -------------------------
-# Phone change (request the new number, confirm with the WhatsApp code sent to it)
+# Phone change (request the new number, confirm with the SMS code sent to it)
 # -------------------------
 
 
@@ -208,7 +208,7 @@ def request_phone_change(
     current_user.pending_phone = new_phone
     users_repository.save(db, current_user)
 
-    send_registration_whatsapp(to_phone=new_phone, code=code)
+    send_registration_sms(to_phone=new_phone, code=code)
     logger.info(f"[USERS] Código de cambio de teléfono enviado: user_id={current_user.id}")
     return {"message": "Verification code sent to the new phone."}
 
