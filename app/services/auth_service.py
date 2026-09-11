@@ -16,7 +16,7 @@ from app.repositories import registration_verifications as registration_verifica
 from app.repositories import tokens as tokens_repository
 from app.repositories import users as users_repository
 from app.utils.email import send_reset_password_email, send_verification_email
-from app.utils.sms import send_registration_sms
+from app.utils.whatsapp import send_registration_whatsapp
 
 _RATE_LIMIT_SECONDS = 60
 _MAX_VERIFICATION_ATTEMPTS = 5
@@ -193,7 +193,7 @@ def request_phone_registration(payload: schemas.PhoneRegistrationRequest, db: Se
     code = _issue_registration_code(
         db, VerificationTokenType.PHONE, payload.phone, settings.PHONE_VERIFICATION_CODE_EXPIRE_MINUTES
     )
-    send_registration_sms(to_phone=payload.phone, code=code)
+    send_registration_whatsapp(to_phone=payload.phone, code=code)
     logger.info(f"[AUTH] Código de registro (teléfono) enviado a {payload.phone}")
     return {"message": "Verification code sent."}
 

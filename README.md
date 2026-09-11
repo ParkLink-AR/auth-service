@@ -5,7 +5,7 @@ verificados *antes* de crear la cuenta), login, tokens (access + refresh), sesio
 multi-dispositivo y reseteo de contraseña — todo por código de 6 dígitos, nada de links.
 
 Construido con **FastAPI**, **PostgreSQL** (SQLAlchemy + Alembic) y **JWT**. Los emails
-transaccionales se mandan con **Brevo**, los SMS con **Twilio**.
+transaccionales se mandan con **Brevo**, los códigos de teléfono por **WhatsApp** (Cloud API de Meta).
 
 ## Qué implementa
 
@@ -15,7 +15,7 @@ transaccionales se mandan con **Brevo**, los SMS con **Twilio**.
 |---|---|---|
 | POST | `/auth/registration/email/request` | Wizard de registro, paso 1: manda un código de 6 dígitos al mail (todavía no existe la cuenta). |
 | POST | `/auth/registration/email/confirm` | Confirma el mail con `{email, code}`. |
-| POST | `/auth/registration/phone/request` | Wizard de registro, paso 2: manda un código de 6 dígitos por SMS. |
+| POST | `/auth/registration/phone/request` | Wizard de registro, paso 2: manda un código de 6 dígitos por WhatsApp. |
 | POST | `/auth/registration/phone/confirm` | Confirma el teléfono con `{phone, code}`. |
 | POST | `/auth/register` | Wizard de registro, paso final: crea la cuenta (nombre, apellido, DNI, fecha de nacimiento, password) — exige que el mail y el teléfono ya se hayan verificado en los pasos anteriores. Nace ya verificada en ambos canales. |
 | POST | `/auth/login` | Autentica con email o teléfono + password. Devuelve `access_token` + `refresh_token`. Falla con 403 si el email no está verificado. |
