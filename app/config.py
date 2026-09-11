@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # Skips email verification requirement at login (useful for local dev/tests)
     SKIP_EMAIL_VERIFICATION: bool = False
 
+    # Skips phone verification at registration -- unlike SKIP_EMAIL_VERIFICATION,
+    # this one IS allowed in production (see validate_production_security below):
+    # sending real SMS requires a paid Twilio number, so this lets a deploy run
+    # without one, at the cost of not confirming the phone number really exists.
+    SKIP_PHONE_VERIFICATION: bool = False
+
     # Called directly (not through the gateway) when an account is closed
     # for good, to wipe the owner's parking spots -- see app/utils/parking_client.py.
     PARKING_SERVICE_URL: str = "http://parking-service:3001"

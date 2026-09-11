@@ -228,7 +228,6 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
         )
 
     email_verification = None
-    phone_verification = None
     if not settings.SKIP_EMAIL_VERIFICATION:
         email_verification = registration_verifications_repository.get_verified_for_target(
             db, VerificationTokenType.EMAIL, payload.email
@@ -238,6 +237,8 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
                 status_code=400, title="Bad Request", detail="Email is not verified yet."
             )
 
+    phone_verification = None
+    if not settings.SKIP_PHONE_VERIFICATION:
         phone_verification = registration_verifications_repository.get_verified_for_target(
             db, VerificationTokenType.PHONE, payload.phone
         )
@@ -254,11 +255,12 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
         dni=payload.dni,
         birth_date=payload.birth_date,
         password_hash=security.hash_password(payload.password),
-        # Both channels were already verified in the wizard steps above (or
-        # SKIP_EMAIL_VERIFICATION bypassed the requirement entirely) -- the
-        # account never exists in a partially-verified state.
+        # email_verified is always True here: either the code was confirmed
+        # above, or SKIP_EMAIL_VERIFICATION bypassed the requirement.
+        # phone_verified reflects reality -- SKIP_PHONE_VERIFICATION lets the
+        # account exist with an unconfirmed phone number (see config.py).
         email_verified=True,
-        phone_verified=True,
+        phone_verified=phone_verification is not None,
         account_type=payload.account_type,
     )
 
