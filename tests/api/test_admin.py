@@ -63,6 +63,14 @@ def test_admin_search_matches_first_and_last_name(client, db):
     assert client.get("/admin/users", params={"query": "lice"}).json()
 
 
+def test_admin_search_matches_full_name(client, db):
+    # "Alice Ownerson" together doesn't match first_name or last_name alone --
+    # needs the concatenated full-name match to find it.
+    _make_user(db)
+    assert client.get("/admin/users", params={"query": "Alice Ownerson"}).json()
+    assert client.get("/admin/users", params={"query": "alice owner"}).json()
+
+
 def test_admin_search_matches_phone_and_dni(client, db):
     _make_user(db)
     assert client.get("/admin/users", params={"query": "1100009900"}).json()

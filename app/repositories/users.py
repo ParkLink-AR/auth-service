@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app import models
@@ -12,9 +12,14 @@ def get_by_id(db: Session, user_id: UUID) -> models.User | None:
 
 def search(db: Session, query: str, limit: int = 50) -> list[models.User]:
     """Case-insensitive partial match across the fields ParkLink staff would
-    plausibly search a user by. Used only from the admin router (app/api/
+    plausibly search a user by: name (first, last, or full "first last"),
+    email, phone, or DNI. Used only from the admin router (app/api/
     admin.py), which the gateway gates on the `role: admin` JWT claim."""
     pattern = f"%{query}%"
+    # Postgres's concat() (unlike the `||` operator) treats a NULL argument as
+    # an empty string, so a user with only one of first_name/last_name set
+    # still matches on that half instead of the whole expression going NULL.
+    full_name = func.concat(models.User.first_name, " ", models.User.last_name)
     return (
         db.query(models.User)
         .filter(
@@ -24,6 +29,7 @@ def search(db: Session, query: str, limit: int = 50) -> list[models.User]:
                 models.User.dni.ilike(pattern),
                 models.User.first_name.ilike(pattern),
                 models.User.last_name.ilike(pattern),
+                full_name.ilike(pattern),
             )
         )
         .limit(limit)
