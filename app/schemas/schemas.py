@@ -412,6 +412,8 @@ class AdminUserSearchOut(BaseModel):
 
 
 class AdminUserDetailOut(AdminUserSearchOut):
+    dni: Optional[str] = None
+    avatar_url: Optional[str] = None
     cbu: Optional[str] = None
     payout_titular: Optional[str] = None
     cuil: Optional[str] = None

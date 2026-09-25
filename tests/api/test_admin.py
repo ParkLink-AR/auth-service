@@ -103,11 +103,14 @@ def test_admin_user_detail_includes_payout_and_extra_fields(client, db):
         cbu="1234567890123456789012",
         payout_titular="Alice Ownerson",
         cuil="20123456789",
+        avatar_url="https://cdn.example.com/avatars/alice.jpg",
     )
     response = client.get(f"/admin/users/{user.id}")
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == str(user.id)
+    assert body["dni"] == "30999000"
+    assert body["avatar_url"] == "https://cdn.example.com/avatars/alice.jpg"
     assert body["cbu"] == "1234567890123456789012"
     assert body["payout_titular"] == "Alice Ownerson"
     assert body["cuil"] == "20123456789"
