@@ -14,10 +14,11 @@ from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
 from app.models import AdminAccount, AdminRole
 from app.security import hash_password
+from app.services.admin_auth import PROTECTED_SUPERADMIN_USERNAME
 
 setup_logger()
 
-_SEED_SUPERADMIN_USERNAME = "superadmin"
+_SEED_SUPERADMIN_USERNAME = PROTECTED_SUPERADMIN_USERNAME
 _SEED_SUPERADMIN_PASSWORD = "ParkLink9510$"
 
 

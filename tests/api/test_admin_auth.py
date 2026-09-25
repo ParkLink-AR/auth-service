@@ -223,6 +223,24 @@ def test_patch_admin_account_rejects_self_deactivation(client, db):
     assert response.status_code == 400
 
 
+def test_patch_admin_account_rejects_deactivating_the_protected_superadmin_account(client, db):
+    # A DIFFERENT superadmin trying to deactivate the well-known "superadmin" account --
+    # distinct from the self-deactivation guard above, this blocks it even for someone else.
+    # The app's own startup lifespan already seeded that account (TestClient runs it on
+    # every test, see _seed_first_superadmin), so this looks it up rather than creating it.
+    other_superadmin = _make_admin(db, username="root-other", role=AdminRole.SUPERADMIN)
+    protected = db.query(AdminAccount).filter(AdminAccount.username == "superadmin").one()
+
+    response = client.patch(
+        f"/admin/accounts/{protected.id}",
+        json={"is_active": False},
+        headers={"X-User-Id": str(other_superadmin.id)},
+    )
+    assert response.status_code == 400
+    db.refresh(protected)
+    assert protected.is_active is True
+
+
 # -------------------------
 # Password change (superadmin-only)
 # -------------------------

@@ -12,6 +12,13 @@ from app.exceptions.handler import ServiceException
 from app.models import AdminRole
 from app.repositories import admin_accounts as admin_accounts_repository
 
+# The account main.py's startup seed always creates when admin_accounts is empty (see
+# _seed_first_superadmin) -- the one recovery account that must always be able to log in,
+# so it's protected from deactivation below regardless of who's asking. Defined here (not
+# in main.py, which imports it) since this is the module that owns admin-account business
+# rules; main.py is just the seeding entrypoint.
+PROTECTED_SUPERADMIN_USERNAME = "superadmin"
+
 # -------------------------
 # Login
 # -------------------------
@@ -130,14 +137,24 @@ def set_admin_account_active(
 ) -> models.AdminAccount:
     _require_active_superadmin(db, requester_admin_id)
 
+    target = admin_accounts_repository.get_by_id(db, target_id)
+    if not target:
+        raise ServiceException(status_code=404, title="Not Found", detail="Admin account not found.")
+
+    # The seeded root account (see main.py's _seed_first_superadmin) must always be able to
+    # log in -- it's the only way to recover if every other admin account somehow gets
+    # deactivated/locked out. Protected by username, not id, since it's the specific
+    # well-known account the deploy always seeds, not merely "whichever one is currently a
+    # superadmin" (self-deactivation below already covers that narrower case).
+    if target.username == PROTECTED_SUPERADMIN_USERNAME and not is_active:
+        raise ServiceException(
+            status_code=400, title="Bad Request", detail="The superadmin account cannot be deactivated."
+        )
+
     if requester_admin_id and target_id == requester_admin_id and not is_active:
         raise ServiceException(
             status_code=400, title="Bad Request", detail="You cannot deactivate your own account."
         )
-
-    target = admin_accounts_repository.get_by_id(db, target_id)
-    if not target:
-        raise ServiceException(status_code=404, title="Not Found", detail="Admin account not found.")
 
     admin_accounts_repository.set_active(db, target, is_active)
     logger.info(
