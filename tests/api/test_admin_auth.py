@@ -224,6 +224,67 @@ def test_patch_admin_account_rejects_self_deactivation(client, db):
 
 
 # -------------------------
+# Password change (superadmin-only)
+# -------------------------
+
+
+def test_set_admin_password_changes_password_and_allows_login(client, db):
+    superadmin = _make_admin(db, username="root-pw-ok", role=AdminRole.SUPERADMIN)
+    target = _make_admin(db, username="pw-target", role=AdminRole.ADMIN)
+
+    response = client.post(
+        f"/admin/accounts/{target.id}/password",
+        json={"new_password": "BrandNewPass123"},
+        headers={"X-User-Id": str(superadmin.id)},
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == str(target.id)
+
+    login = client.post(
+        "/admin/auth/login", json={"username": "pw-target", "password": "BrandNewPass123"}
+    )
+    assert login.status_code == 200
+
+
+def test_set_admin_password_403_for_non_superadmin_caller(client, db):
+    regular_admin = _make_admin(db, username="just-an-admin-4", role=AdminRole.ADMIN)
+    target = _make_admin(db, username="pw-target-2", role=AdminRole.ADMIN)
+
+    response = client.post(
+        f"/admin/accounts/{target.id}/password",
+        json={"new_password": "BrandNewPass123"},
+        headers={"X-User-Id": str(regular_admin.id)},
+    )
+    assert response.status_code == 403
+
+
+def test_set_admin_password_404_for_unknown_target(client, db):
+    superadmin = _make_admin(db, username="root-pw-404", role=AdminRole.SUPERADMIN)
+
+    response = client.post(
+        "/admin/accounts/99999999-9999-9999-9999-999999999999/password",
+        json={"new_password": "BrandNewPass123"},
+        headers={"X-User-Id": str(superadmin.id)},
+    )
+    assert response.status_code == 404
+
+
+def test_set_admin_password_rejects_weak_password(client, db):
+    superadmin = _make_admin(db, username="root-pw-weak", role=AdminRole.SUPERADMIN)
+    target = _make_admin(db, username="pw-target-3", role=AdminRole.ADMIN)
+
+    response = client.post(
+        f"/admin/accounts/{target.id}/password",
+        json={"new_password": "short"},
+        headers={"X-User-Id": str(superadmin.id)},
+    )
+    # This repo's validation_exception_handler (main.py) rewrites FastAPI's default 422
+    # into a 400 problem+json body -- see AdminAccountCreate's password tests for the
+    # same convention.
+    assert response.status_code == 400
+
+
+# -------------------------
 # Startup seed
 # -------------------------
 

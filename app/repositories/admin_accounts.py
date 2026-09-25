@@ -29,3 +29,11 @@ def set_active(db: Session, admin_account: models.AdminAccount, is_active: bool)
     db.commit()
     db.refresh(admin_account)
     return admin_account
+
+
+def set_password_hash(db: Session, admin_account: models.AdminAccount, password_hash: str) -> models.AdminAccount:
+    admin_account.password_hash = password_hash
+    db.add(admin_account)
+    db.commit()
+    db.refresh(admin_account)
+    return admin_account

@@ -107,6 +107,24 @@ def list_admin_accounts(requester_admin_id: UUID | None, db: Session) -> list[mo
     return admin_accounts_repository.list_all(db)
 
 
+def set_admin_account_password(
+    requester_admin_id: UUID | None, target_id: UUID, new_password: str, db: Session
+) -> models.AdminAccount:
+    """Only a superadmin may change another admin account's password -- there's no
+    self-service "forgot password" flow for this separate staff identity system (it's not
+    tied to a real email address), so a locked-out admin gets a new password set by a
+    superadmin instead."""
+    _require_active_superadmin(db, requester_admin_id)
+
+    target = admin_accounts_repository.get_by_id(db, target_id)
+    if not target:
+        raise ServiceException(status_code=404, title="Not Found", detail="Admin account not found.")
+
+    admin_accounts_repository.set_password_hash(db, target, security.hash_password(new_password))
+    logger.info(f"[ADMIN_AUTH] Contraseña cambiada: id={target.id}, by={requester_admin_id}")
+    return target
+
+
 def set_admin_account_active(
     requester_admin_id: UUID | None, target_id: UUID, is_active: bool, db: Session
 ) -> models.AdminAccount:

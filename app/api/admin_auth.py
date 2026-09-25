@@ -54,6 +54,18 @@ def list_admin_accounts(
     return admin_auth_service.list_admin_accounts(_parse_admin_id(x_user_id), db)
 
 
+@router.post("/accounts/{id}/password", response_model=schemas.AdminAccountOut)
+def set_admin_account_password(
+    id: UUID,
+    payload: schemas.AdminAccountSetPassword,
+    x_user_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    return admin_auth_service.set_admin_account_password(
+        _parse_admin_id(x_user_id), id, payload.new_password, db
+    )
+
+
 @router.patch("/accounts/{id}", response_model=schemas.AdminAccountOut)
 def set_admin_account_active(
     id: UUID,

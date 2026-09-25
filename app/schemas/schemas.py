@@ -462,6 +462,15 @@ class AdminAccountSetActive(BaseModel):
     is_active: bool
 
 
+class AdminAccountSetPassword(BaseModel):
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_validator(cls, v: str) -> str:
+        return _validate_password_strength(v)
+
+
 class AdminAccountOut(BaseModel):
     id: UUID
     username: str
