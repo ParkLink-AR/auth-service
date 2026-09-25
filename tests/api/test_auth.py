@@ -1,8 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt
-
-from app.config import settings
 from app.models import RegistrationVerification, UserStatus, VerificationToken, VerificationTokenType
 from app.security import hash_password, hash_token
 from app.services.auth_service import issue_email_verification_code
@@ -332,51 +329,6 @@ def test_login_blocks_unverified_email(client, db):
         json={"email": "unverified@example.com", "password": "SecurePass123"},
     )
     assert response.status_code == 403
-
-
-def _decode(token: str) -> dict:
-    return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-
-
-def test_login_includes_admin_role_claim_for_admin_user(client, test_user, db):
-    test_user.is_admin = True
-    db.add(test_user)
-    db.commit()
-
-    response = client.post(
-        "/auth/login",
-        json={"email": test_user.email, "password": "Password123"},
-    )
-    assert response.status_code == 200
-    payload = _decode(response.json()["access_token"])
-    assert payload["role"] == "admin"
-
-
-def test_login_omits_role_claim_for_regular_user(client, test_user):
-    response = client.post(
-        "/auth/login",
-        json={"email": test_user.email, "password": "Password123"},
-    )
-    assert response.status_code == 200
-    payload = _decode(response.json()["access_token"])
-    assert "role" not in payload
-
-
-def test_refresh_reissues_admin_role_claim(client, test_user, db):
-    test_user.is_admin = True
-    db.add(test_user)
-    db.commit()
-
-    login_response = client.post(
-        "/auth/login",
-        json={"email": test_user.email, "password": "Password123"},
-    )
-    refresh_token = login_response.json()["refresh_token"]
-
-    refresh_response = client.post("/auth/refresh", json={"refresh_token": refresh_token})
-    assert refresh_response.status_code == 200
-    payload = _decode(refresh_response.json()["access_token"])
-    assert payload["role"] == "admin"
 
 
 def test_refresh_rotates_token_and_invalidates_old_one(client, test_user):

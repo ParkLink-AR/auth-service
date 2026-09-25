@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, computed_field, field_validator, model_validator, StringConstraints
 from pydantic_core import PydanticCustomError
 
+from app.models.admin_account import AdminRole
 from app.models.user import UserStatus, AccountType
 
 # -------------------------
@@ -392,8 +393,8 @@ class PayoutStatusOut(BaseModel):
 
 # -------------------------
 # ADMIN (ParkLink staff -- gateway gates these routes on the `role: admin`
-# JWT claim before the request ever reaches this service; see auth_service.
-# _issue_token_pair and app/api/admin.py)
+# JWT claim before the request ever reaches this service; see
+# admin_auth_service.login and app/api/admin.py)
 # -------------------------
 
 
@@ -422,3 +423,51 @@ class AdminUserDetailOut(AdminUserSearchOut):
     @property
     def has_payout_info(self) -> bool:
         return bool(self.cbu and self.payout_titular and self.cuil)
+
+
+# -------------------------
+# ADMIN AUTH (separate identity system for ParkLink staff/admin accounts --
+# entirely unrelated to the `users` table above; see app/services/
+# admin_auth.py and app/api/admin_auth.py)
+# -------------------------
+
+
+class AdminLoginRequest(BaseModel):
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class AdminToken(BaseModel):
+    """Admin sessions don't get a refresh token -- just a longer-lived access
+    token (see ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES); the admin frontend simply
+    re-logs-in when it expires."""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # access token lifetime, in seconds
+
+
+class AdminAccountCreate(BaseModel):
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    password: str
+    role: AdminRole = AdminRole.ADMIN
+
+    @field_validator("password")
+    @classmethod
+    def password_validator(cls, v: str) -> str:
+        return _validate_password_strength(v)
+
+
+class AdminAccountSetActive(BaseModel):
+    is_active: bool
+
+
+class AdminAccountOut(BaseModel):
+    id: UUID
+    username: str
+    role: AdminRole
+    is_active: bool
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)

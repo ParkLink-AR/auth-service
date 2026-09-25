@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    # Admin panel sessions don't have a refresh token (see app/services/
+    # admin_auth.py) -- they just get a longer-lived access token instead of
+    # re-authenticating every ACCESS_TOKEN_EXPIRE_MINUTES.
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = 720
 
     # Brevo (transactional email)
     BREVO_API_KEY: str = ""

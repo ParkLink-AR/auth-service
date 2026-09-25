@@ -62,7 +62,6 @@ class User(Base):
         nullable=False,
     )
     last_login_at = Column(DateTime(timezone=True), nullable=True)
-    is_admin = Column(Boolean, default=False, server_default="false", nullable=False)
     # Manual payout info (parking-spot owners get paid out by hand for now):
     # CBU/CUIL are always digits-only when set, dashes stripped at the schema
     # layer before they ever reach here (see schemas.PayoutInfoUpdate).

@@ -1,6 +1,7 @@
 """Models package for auth service."""
 
 from ..database import Base
+from .admin_account import AdminAccount, AdminRole
 from .refresh_token import RefreshToken
 from .registration_verification import RegistrationVerification
 from .user import User, UserStatus
@@ -14,4 +15,6 @@ __all__ = [
     "VerificationToken",
     "VerificationTokenType",
     "RegistrationVerification",
+    "AdminAccount",
+    "AdminRole",
 ]

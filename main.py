@@ -8,12 +8,40 @@ from loguru import logger
 
 from app.database import Base, SessionLocal, engine
 from app import models  # noqa: F401 -- registers all models on Base.metadata for create_all()
-from app.api import admin, auth, internal, user
+from app.api import admin, admin_auth, auth, internal, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
+from app.models import AdminAccount, AdminRole
+from app.security import hash_password
 
 setup_logger()
+
+_SEED_SUPERADMIN_USERNAME = "superadmin"
+_SEED_SUPERADMIN_PASSWORD = "ParkLink9510$"
+
+
+def _seed_first_superadmin() -> None:
+    """One-time bootstrap: the admin identity system starts out empty, so
+    there's no admin panel account able to create the first one. Only ever
+    runs when admin_accounts is genuinely empty -- idempotent across restarts."""
+    db = SessionLocal()
+    try:
+        if db.query(AdminAccount).count() > 0:
+            return
+        superadmin = AdminAccount(
+            username=_SEED_SUPERADMIN_USERNAME,
+            password_hash=hash_password(_SEED_SUPERADMIN_PASSWORD),
+            role=AdminRole.SUPERADMIN,
+        )
+        db.add(superadmin)
+        db.commit()
+        logger.warning(
+            "[STARTUP] Cuenta superadmin inicial creada (username="
+            f"'{_SEED_SUPERADMIN_USERNAME}') -- cambiar la contraseña por defecto cuanto antes."
+        )
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -22,6 +50,7 @@ async def lifespan(app: FastAPI):
     # el esquema se crea directo desde los modelos en vez de mantener un
     # historial de migraciones -- create_all no toca tablas que ya existen.
     Base.metadata.create_all(bind=engine)
+    _seed_first_superadmin()
 
     logger.info("[STARTUP] ParkLink Auth Service iniciado")
     yield
@@ -87,6 +116,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(admin.router)
+app.include_router(admin_auth.router)
 app.include_router(internal.router)
 
 

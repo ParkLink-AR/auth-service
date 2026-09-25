@@ -29,13 +29,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 # -------------------------
 
 
-def create_access_token(user_id, extra_claims: dict | None = None) -> str:
+def create_access_token(user_id, extra_claims: dict | None = None, expire_minutes: int | None = None) -> str:
     now = datetime.now(timezone.utc)
+    minutes = expire_minutes if expire_minutes is not None else settings.ACCESS_TOKEN_EXPIRE_MINUTES
     to_encode = {
         "sub": str(user_id),
         "type": "access",
         "iat": now,
-        "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": now + timedelta(minutes=minutes),
     }
     if extra_claims:
         to_encode.update(extra_claims)

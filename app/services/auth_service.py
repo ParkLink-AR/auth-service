@@ -83,11 +83,7 @@ def _issue_token_pair(db: Session, user: models.User, device: schemas.DeviceInfo
     tokens_repository.create_refresh_token(db, refresh_token)
     db.commit()
 
-    # Mirrors payment-service's requireAdmin / the gateway's authenticate_admin,
-    # which both gate on payload.role == "admin" for a JWT signed with the
-    # same shared JWT_SECRET.
-    extra_claims = {"role": "admin"} if user.is_admin else None
-    access_token = security.create_access_token(user.id, extra_claims=extra_claims)
+    access_token = security.create_access_token(user.id)
 
     return schemas.Token(
         access_token=access_token,
