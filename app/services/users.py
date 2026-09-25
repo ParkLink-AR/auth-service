@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from datetime import datetime, timezone
 
 from fastapi import UploadFile
 from loguru import logger
@@ -265,6 +266,45 @@ def confirm_phone_change(
 
     logger.info(f"[USERS] Teléfono actualizado: user_id={current_user.id}")
     return current_user
+
+
+# -------------------------
+# Payout info (manual payouts to parking-spot owners)
+# -------------------------
+
+
+def _has_payout_info(user: models.User) -> bool:
+    return bool(user.cbu and user.payout_titular and user.cuil)
+
+
+def get_payout_info(user_id, current_user: models.User) -> models.User:
+    _require_self(user_id, current_user)
+    return current_user
+
+
+def update_payout_info(
+    user_id, payload: schemas.PayoutInfoUpdate, db: Session, current_user: models.User
+) -> models.User:
+    _require_self(user_id, current_user)
+
+    current_user.cbu = payload.cbu
+    current_user.payout_titular = payload.payout_titular
+    current_user.cuil = payload.cuil
+    current_user.payout_info_updated_at = datetime.now(timezone.utc)
+    users_repository.save(db, current_user)
+
+    logger.info(f"[USERS] Datos de cobro actualizados: user_id={current_user.id}")
+    return current_user
+
+
+def get_payout_status(db: Session, user_id) -> bool:
+    """Used by parking-service (internal, service-to-service) to check
+    whether an owner has payout info on file, e.g. before allowing a spot to
+    go live -- see app/api/internal.py."""
+    user = users_repository.get_by_id(db, user_id)
+    if not user:
+        raise ServiceException(status_code=404, title="Not Found", detail="User not found.")
+    return _has_payout_info(user)
 
 
 def delete_user(user_id, payload: schemas.AccountDeleteRequest, db: Session, current_user: models.User) -> dict:

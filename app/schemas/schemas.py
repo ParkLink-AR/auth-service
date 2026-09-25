@@ -339,3 +339,86 @@ class UserUpdate(BaseModel):
 
 class AccountDeleteRequest(BaseModel):
     password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+# -------------------------
+# PAYOUT INFO (manual payouts to parking-spot owners: CBU + titular + CUIL)
+# -------------------------
+
+
+PayoutTitularStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+
+
+class PayoutInfoUpdate(BaseModel):
+    cbu: str
+    payout_titular: PayoutTitularStr
+    cuil: str
+
+    @field_validator("cbu")
+    @classmethod
+    def cbu_validator(cls, v: str) -> str:
+        digits = v.strip()
+        if not digits.isdigit() or len(digits) != 22:
+            raise PydanticCustomError("invalid_cbu", "CBU must be exactly 22 digits")
+        return digits
+
+    @field_validator("cuil")
+    @classmethod
+    def cuil_validator(cls, v: str) -> str:
+        digits = re.sub(r"[-\s]", "", v)
+        if not digits.isdigit() or len(digits) != 11:
+            raise PydanticCustomError("invalid_cuil", "CUIL must be 11 digits")
+        return digits
+
+
+class PayoutInfoOut(BaseModel):
+    cbu: Optional[str] = None
+    payout_titular: Optional[str] = None
+    cuil: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def has_payout_info(self) -> bool:
+        return bool(self.cbu and self.payout_titular and self.cuil)
+
+
+class PayoutStatusOut(BaseModel):
+    """Internal (service-to-service) shape -- see app/api/internal.py."""
+
+    has_payout_info: bool
+
+
+# -------------------------
+# ADMIN (ParkLink staff -- gateway gates these routes on the `role: admin`
+# JWT claim before the request ever reaches this service; see auth_service.
+# _issue_token_pair and app/api/admin.py)
+# -------------------------
+
+
+class AdminUserSearchOut(BaseModel):
+    id: UUID
+    email: EmailStr
+    phone: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    account_type: AccountType
+    status: UserStatus
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminUserDetailOut(AdminUserSearchOut):
+    cbu: Optional[str] = None
+    payout_titular: Optional[str] = None
+    cuil: Optional[str] = None
+    email_verified: bool
+    phone_verified: bool
+    last_login_at: Optional[datetime] = None
+
+    @computed_field
+    @property
+    def has_payout_info(self) -> bool:
+        return bool(self.cbu and self.payout_titular and self.cuil)

@@ -8,7 +8,7 @@ from loguru import logger
 
 from app.database import Base, SessionLocal, engine
 from app import models  # noqa: F401 -- registers all models on Base.metadata for create_all()
-from app.api import auth, user
+from app.api import admin, auth, internal, user
 from app.middleware.error_handler import ErrorHandlerMiddleware
 from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
@@ -86,6 +86,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.include_router(auth.router)
 app.include_router(user.router)
+app.include_router(admin.router)
+app.include_router(internal.router)
 
 
 @app.get("/livez", tags=["health"])

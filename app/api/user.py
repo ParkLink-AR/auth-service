@@ -39,6 +39,24 @@ def update_user(
     return users_service.update_user(id, payload, db, current_user)
 
 
+@router.get("/{id}/payout-info", response_model=schemas.PayoutInfoOut)
+def get_payout_info(
+    id: UUID,
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.get_payout_info(id, current_user)
+
+
+@router.put("/{id}/payout-info", response_model=schemas.PayoutInfoOut)
+def update_payout_info(
+    id: UUID,
+    payload: schemas.PayoutInfoUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.update_payout_info(id, payload, db, current_user)
+
+
 @router.post("/{id}/avatar", response_model=schemas.UserOut)
 async def update_avatar(
     id: UUID,
