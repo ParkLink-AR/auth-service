@@ -404,6 +404,7 @@ class AdminUserSearchOut(BaseModel):
     phone: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    dni: Optional[str] = None
     account_type: AccountType
     status: UserStatus
     created_at: datetime
@@ -412,7 +413,6 @@ class AdminUserSearchOut(BaseModel):
 
 
 class AdminUserDetailOut(AdminUserSearchOut):
-    dni: Optional[str] = None
     avatar_url: Optional[str] = None
     cbu: Optional[str] = None
     payout_titular: Optional[str] = None

@@ -38,12 +38,14 @@ def test_admin_search_matches_partial_email(client, db):
     assert len(body) == 1
     row = body[0]
     assert row["email"] == "alice.owner@example.com"
+    assert row["dni"] == "30999000"
     assert set(row.keys()) == {
         "id",
         "email",
         "phone",
         "first_name",
         "last_name",
+        "dni",
         "account_type",
         "status",
         "created_at",
