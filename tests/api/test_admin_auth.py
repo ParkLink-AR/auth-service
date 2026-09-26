@@ -187,6 +187,26 @@ def test_list_admin_accounts_403_for_non_superadmin_caller(client, db):
 # -------------------------
 
 
+def test_get_admin_account_works_for_any_admin_not_just_superadmin(client, db):
+    # No X-User-Id at all still resolves -- unlike every other /admin/accounts* endpoint,
+    # this one has no superadmin gate (see admin_auth_service.get_admin_account).
+    target = _make_admin(db, username="lookup-target", role=AdminRole.ADMIN)
+
+    response = client.get(f"/admin/accounts/{target.id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(target.id)
+    assert body["username"] == "lookup-target"
+    assert "password_hash" not in body
+
+
+def test_get_admin_account_404_for_unknown_id(client, db):
+    response = client.get("/admin/accounts/99999999-9999-9999-9999-999999999999")
+
+    assert response.status_code == 404
+
+
 def test_patch_admin_account_toggles_active(client, db):
     superadmin = _make_admin(db, username="root-patch-ok", role=AdminRole.SUPERADMIN)
     target = _make_admin(db, username="toggle-target", role=AdminRole.ADMIN)

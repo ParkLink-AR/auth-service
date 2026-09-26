@@ -114,6 +114,16 @@ def list_admin_accounts(requester_admin_id: UUID | None, db: Session) -> list[mo
     return admin_accounts_repository.list_all(db)
 
 
+def get_admin_account(target_id: UUID, db: Session) -> models.AdminAccount:
+    """No superadmin gate, unlike the rest of this file -- this just resolves an admin id to
+    its username/role for display (e.g. a settlement's "creado por"/"pagado por"), something
+    any logged-in admin needs regardless of their own role, not a management action."""
+    admin_account = admin_accounts_repository.get_by_id(db, target_id)
+    if not admin_account:
+        raise ServiceException(status_code=404, title="Not Found", detail="Admin account not found.")
+    return admin_account
+
+
 def set_admin_account_password(
     requester_admin_id: UUID | None, target_id: UUID, new_password: str, db: Session
 ) -> models.AdminAccount:

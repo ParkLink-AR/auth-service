@@ -54,6 +54,13 @@ def list_admin_accounts(
     return admin_auth_service.list_admin_accounts(_parse_admin_id(x_user_id), db)
 
 
+@router.get("/accounts/{id}", response_model=schemas.AdminAccountOut)
+def get_admin_account(id: UUID, db: Session = Depends(get_db)):
+    """Unlike the endpoints above, no superadmin gate -- see
+    admin_auth_service.get_admin_account for why."""
+    return admin_auth_service.get_admin_account(id, db)
+
+
 @router.post("/accounts/{id}/password", response_model=schemas.AdminAccountOut)
 def set_admin_account_password(
     id: UUID,
