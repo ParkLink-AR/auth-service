@@ -342,6 +342,20 @@ class AccountDeleteRequest(BaseModel):
     password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
+class PasswordVerifyRequest(BaseModel):
+    current_password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_validator(cls, v: str) -> str:
+        return _validate_password_strength(v)
+
+
 # -------------------------
 # PAYOUT INFO (manual payouts to parking-spot owners: CBU + titular + CUIL)
 # -------------------------

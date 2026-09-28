@@ -343,6 +343,116 @@ def test_upload_avatar_requires_self(client, test_user, db):
     assert response.status_code == 403
 
 
+def test_verify_current_password_accepts_correct_password(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/password/verify",
+        json={"current_password": "Password123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+
+
+def test_verify_current_password_rejects_wrong_password(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/password/verify",
+        json={"current_password": "WrongPassword1"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_verify_current_password_requires_self(client, test_user, db):
+    other = User(
+        email="otherpwverify@example.com",
+        phone="+5491100002244",
+        first_name="Other",
+        last_name="User",
+        dni="30222334",
+        birth_date=date(1990, 1, 1),
+        password_hash=hash_password("Password123"),
+        email_verified=True,
+        phone_verified=True,
+    )
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{other.id}/password/verify",
+        json={"current_password": "Password123"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+
+def test_change_password_requires_correct_current_password(client, test_user):
+    token = _login(client, test_user)
+    response = client.put(
+        f"/users/{test_user.id}/password",
+        json={"current_password": "WrongPassword1", "new_password": "NewPassword456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_weak_new_password(client, test_user):
+    token = _login(client, test_user)
+    response = client.put(
+        f"/users/{test_user.id}/password",
+        json={"current_password": "Password123", "new_password": "weak"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
+def test_change_password_updates_and_allows_login_with_new_password(client, test_user, db):
+    token = _login(client, test_user)
+    response = client.put(
+        f"/users/{test_user.id}/password",
+        json={"current_password": "Password123", "new_password": "NewPassword456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+
+    old_login = client.post(
+        "/auth/login", json={"email": test_user.email, "password": "Password123"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/auth/login", json={"email": test_user.email, "password": "NewPassword456"}
+    )
+    assert new_login.status_code == 200
+
+
+def test_change_password_requires_self(client, test_user, db):
+    other = User(
+        email="otherpwchange@example.com",
+        phone="+5491100002255",
+        first_name="Other",
+        last_name="User",
+        dni="30222335",
+        birth_date=date(1990, 1, 1),
+        password_hash=hash_password("Password123"),
+        email_verified=True,
+        phone_verified=True,
+    )
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+
+    token = _login(client, test_user)
+    response = client.put(
+        f"/users/{other.id}/password",
+        json={"current_password": "Password123", "new_password": "NewPassword456"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+
 def test_delete_account_requires_correct_password(client, test_user):
     token = _login(client, test_user)
     response = client.request(

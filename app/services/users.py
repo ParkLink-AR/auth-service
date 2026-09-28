@@ -307,6 +307,45 @@ def get_payout_status(db: Session, user_id) -> bool:
     return _has_payout_info(user)
 
 
+# -------------------------
+# Password change (in-app, current-password-verified -- distinct from the
+# forgot-password-by-email flow in auth_service.py, which is for a user who
+# is logged out and doesn't know their current password)
+# -------------------------
+
+
+def verify_current_password(
+    user_id, payload: schemas.PasswordVerifyRequest, current_user: models.User
+) -> dict:
+    _require_self(user_id, current_user)
+
+    if not security.verify_password(payload.current_password, current_user.password_hash):
+        raise ServiceException(
+            status_code=401, title="Unauthorized", detail="Incorrect password."
+        )
+    return {"message": "Password verified."}
+
+
+def change_password(
+    user_id, payload: schemas.PasswordChangeRequest, db: Session, current_user: models.User
+) -> dict:
+    _require_self(user_id, current_user)
+
+    # Re-checked here too (not just in the "verify" step the UI calls first) --
+    # the current password could have changed in between the two screens, and
+    # this is the call that actually rotates it.
+    if not security.verify_password(payload.current_password, current_user.password_hash):
+        raise ServiceException(
+            status_code=401, title="Unauthorized", detail="Incorrect password."
+        )
+
+    current_user.password_hash = security.hash_password(payload.new_password)
+    users_repository.save(db, current_user)
+
+    logger.info(f"[USERS] Contraseña actualizada: user_id={current_user.id}")
+    return {"message": "Password updated successfully."}
+
+
 def delete_user(user_id, payload: schemas.AccountDeleteRequest, db: Session, current_user: models.User) -> dict:
     _require_self(user_id, current_user)
 

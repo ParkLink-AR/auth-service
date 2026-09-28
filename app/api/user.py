@@ -57,6 +57,25 @@ def update_payout_info(
     return users_service.update_payout_info(id, payload, db, current_user)
 
 
+@router.post("/{id}/password/verify", response_model=dict)
+def verify_current_password(
+    id: UUID,
+    payload: schemas.PasswordVerifyRequest,
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.verify_current_password(id, payload, current_user)
+
+
+@router.put("/{id}/password", response_model=dict)
+def change_password(
+    id: UUID,
+    payload: schemas.PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return users_service.change_password(id, payload, db, current_user)
+
+
 @router.post("/{id}/avatar", response_model=schemas.UserOut)
 async def update_avatar(
     id: UUID,
