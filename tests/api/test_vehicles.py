@@ -81,6 +81,72 @@ def test_create_vehicle_rejects_unsupported_country(client, test_user):
     assert response.status_code == 400
 
 
+def test_create_vehicle_accepts_old_format_argentine_plate(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": "abc123", "brand": "Ford", "model": "Falcon", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert response.json()["plate"] == "ABC123"
+
+
+def test_create_vehicle_accepts_mercosur_format_argentine_plate(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": "ab123cd", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert response.json()["plate"] == "AB123CD"
+
+
+def test_create_vehicle_accepts_old_format_argentine_moto_plate(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": "123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert response.json()["plate"] == "123ABC"
+
+
+def test_create_vehicle_accepts_mercosur_format_argentine_moto_plate(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": "a123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    assert response.json()["plate"] == "A123ABC"
+
+
+def test_create_vehicle_rejects_argentine_plate_matching_neither_format(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        # 4 letters + 2 digits -- not the old ABC123 shape nor the Mercosur AB123CD one.
+        json={"plate": "ABCD12", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
+def test_create_vehicle_rejects_country_other_than_argentina(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        # Only Argentina is supported for now -- see schemas.VEHICLE_COUNTRIES.
+        json={"plate": "ABC1D23", "brand": "Fiat", "model": "Uno", "country": "BR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+
+
 def test_create_vehicle_rejects_empty_brand(client, test_user):
     token = _login(client, test_user)
     response = client.post(
@@ -112,7 +178,7 @@ def test_list_vehicles_returns_created_ones_oldest_first(client, test_user):
     )
     client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "XY987ZW", "brand": "Ford", "model": "Fiesta", "country": "BR"},
+        json={"plate": "XY987ZW", "brand": "Ford", "model": "Fiesta", "country": "AR"},
         headers=headers,
     )
 

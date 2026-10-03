@@ -415,10 +415,24 @@ VehiclePlateStr = Annotated[str, StringConstraints(strip_whitespace=True, min_le
 VehicleBrandStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 VehicleModelStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 
-# Mercosur member states + the few neighbors a plate graphic should still recognize --
-# intentionally short and fixed rather than every ISO country, since the UI renders this as
-# a picker, not free text (see mobile's VehiclePlate.tsx COUNTRY_LABELS).
-VEHICLE_COUNTRIES = {"AR", "BR", "UY", "PY", "CL", "BO"}
+# Argentina only, for now -- the plate graphic (mobile's VehiclePlate.tsx) is a faithful
+# recreation of a real Argentine plate, and doing the same for every other country isn't
+# worth it yet. A set (not a single constant) so this is just one line to widen later.
+VEHICLE_COUNTRIES = {"AR"}
+
+
+# Argentina only ever issued four domain formats -- two for cars, two for motorcycles (one
+# digit/letter shorter on one side than the car's equivalent era): three letters + three
+# digits (pre-2016 car, e.g. ABC123) / three digits + three letters (pre-2016 moto, e.g.
+# 123ABC), and the current Mercosur ones, two letters + three digits + two letters (car,
+# e.g. AB123CD) / one letter + three digits + three letters (moto, e.g. A123ABC). A plate
+# matching none of these four is not a valid Argentine domain -- see mobile's
+# VehiclePlate.tsx, which mirrors this exact set of patterns to also pick which plate
+# graphic to draw.
+AR_CAR_OLD_PLATE_FORMAT = re.compile(r"^[A-Z]{3}\d{3}$")
+AR_CAR_MERCOSUR_PLATE_FORMAT = re.compile(r"^[A-Z]{2}\d{3}[A-Z]{2}$")
+AR_MOTO_OLD_PLATE_FORMAT = re.compile(r"^\d{3}[A-Z]{3}$")
+AR_MOTO_MERCOSUR_PLATE_FORMAT = re.compile(r"^[A-Z]\d{3}[A-Z]{3}$")
 
 
 class VehicleCreate(BaseModel):
@@ -439,6 +453,20 @@ class VehicleCreate(BaseModel):
         if code not in VEHICLE_COUNTRIES:
             raise PydanticCustomError("invalid_country", "Unsupported vehicle country")
         return code
+
+    @model_validator(mode="after")
+    def ar_plate_format_validator(self) -> "VehicleCreate":
+        if self.country == "AR" and not (
+            AR_CAR_OLD_PLATE_FORMAT.match(self.plate)
+            or AR_CAR_MERCOSUR_PLATE_FORMAT.match(self.plate)
+            or AR_MOTO_OLD_PLATE_FORMAT.match(self.plate)
+            or AR_MOTO_MERCOSUR_PLATE_FORMAT.match(self.plate)
+        ):
+            raise PydanticCustomError(
+                "invalid_ar_plate",
+                "An Argentine plate must be one of: ABC123/AB123CD (car) or 123ABC/A123ABC (motorcycle)",
+            )
+        return self
 
 
 class VehicleOut(BaseModel):
