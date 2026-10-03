@@ -8,6 +8,7 @@ from app import models, schemas
 from app.api.dependencies import get_current_user
 from app.database import get_db
 from app.services import users as users_service
+from app.services import vehicles as vehicles_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -134,3 +135,33 @@ def delete_user(
     current_user: models.User = Depends(get_current_user),
 ):
     return users_service.delete_user(id, payload, db, current_user)
+
+
+@router.get("/{id}/vehicles", response_model=list[schemas.VehicleOut])
+def list_vehicles(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return vehicles_service.list_vehicles(id, db, current_user)
+
+
+@router.post("/{id}/vehicles", response_model=schemas.VehicleOut, status_code=201)
+def create_vehicle(
+    id: UUID,
+    payload: schemas.VehicleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    return vehicles_service.create_vehicle(id, payload, db, current_user)
+
+
+@router.delete("/{id}/vehicles/{vehicle_id}", response_model=dict)
+def delete_vehicle(
+    id: UUID,
+    vehicle_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    vehicles_service.delete_vehicle(id, vehicle_id, db, current_user)
+    return {"deleted": True}

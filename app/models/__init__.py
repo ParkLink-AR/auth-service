@@ -5,6 +5,7 @@ from .admin_account import AdminAccount, AdminRole
 from .refresh_token import RefreshToken
 from .registration_verification import RegistrationVerification
 from .user import User, UserStatus
+from .vehicle import Vehicle
 from .verification_token import VerificationToken, VerificationTokenType
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "RegistrationVerification",
     "AdminAccount",
     "AdminRole",
+    "Vehicle",
 ]

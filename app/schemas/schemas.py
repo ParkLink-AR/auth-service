@@ -406,6 +406,53 @@ class PayoutStatusOut(BaseModel):
 
 
 # -------------------------
+# VEHICLES (a driver's own cars -- entirely optional, picked when booking a spot so the
+# owner knows which plate to expect)
+# -------------------------
+
+
+VehiclePlateStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=10)]
+VehicleBrandStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+VehicleModelStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+# Mercosur member states + the few neighbors a plate graphic should still recognize --
+# intentionally short and fixed rather than every ISO country, since the UI renders this as
+# a picker, not free text (see mobile's VehiclePlate.tsx COUNTRY_LABELS).
+VEHICLE_COUNTRIES = {"AR", "BR", "UY", "PY", "CL", "BO"}
+
+
+class VehicleCreate(BaseModel):
+    plate: VehiclePlateStr
+    brand: VehicleBrandStr
+    model: VehicleModelStr
+    country: str
+
+    @field_validator("plate")
+    @classmethod
+    def plate_validator(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("country")
+    @classmethod
+    def country_validator(cls, v: str) -> str:
+        code = v.strip().upper()
+        if code not in VEHICLE_COUNTRIES:
+            raise PydanticCustomError("invalid_country", "Unsupported vehicle country")
+        return code
+
+
+class VehicleOut(BaseModel):
+    id: UUID
+    plate: str
+    brand: str
+    model: str
+    country: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# -------------------------
 # ADMIN (ParkLink staff -- gateway gates these routes on the `role: admin`
 # JWT claim before the request ever reaches this service; see
 # admin_auth_service.login and app/api/admin.py)
