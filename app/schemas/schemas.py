@@ -375,6 +375,8 @@ class PayoutInfoUpdate(BaseModel):
         digits = v.strip()
         if not digits.isdigit() or len(digits) != 22:
             raise PydanticCustomError("invalid_cbu", "CBU must be exactly 22 digits")
+        if not _cbu_check_digits_ok(digits):
+            raise PydanticCustomError("invalid_cbu", "CBU check digits don't match -- check for a typo")
         return digits
 
     @field_validator("cuil")
@@ -384,6 +386,16 @@ class PayoutInfoUpdate(BaseModel):
         if not digits.isdigit() or len(digits) != 11:
             raise PydanticCustomError("invalid_cuil", "CUIL must be 11 digits")
         return digits
+
+
+def _cbu_check_digits_ok(cbu: str) -> bool:
+    """A CBU carries two check digits (BCRA's algorithm): the 8th covers the bank+branch
+    block, the 22nd the account block. Catches a mistyped digit before ParkLink sends an
+    owner's money to the wrong account."""
+    digits = [int(c) for c in cbu]
+    bank_sum = sum(d * w for d, w in zip(digits[:7], (7, 1, 3, 9, 7, 1, 3)))
+    account_sum = sum(d * w for d, w in zip(digits[8:21], (3, 9, 7, 1, 3, 9, 7, 1, 3, 9, 7, 1, 3)))
+    return (10 - bank_sum % 10) % 10 == digits[7] and (10 - account_sum % 10) % 10 == digits[21]
 
 
 class PayoutInfoOut(BaseModel):

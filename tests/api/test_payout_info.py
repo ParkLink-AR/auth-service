@@ -4,7 +4,7 @@ from datetime import date
 from app.models import User
 from app.security import hash_password
 
-VALID_CBU = "1234567890123456789012"
+VALID_CBU = "2850590940090418135201"
 VALID_CUIL = "20123456789"
 
 
@@ -188,3 +188,13 @@ def test_internal_payout_status_requires_no_auth_header(client, test_user):
 def test_internal_payout_status_404_for_unknown_user(client):
     response = client.get(f"/internal/users/{uuid.uuid4()}/payout-status")
     assert response.status_code == 404
+
+
+def test_update_payout_info_rejects_cbu_with_wrong_check_digit(client, test_user):
+    token = _login(client, test_user)
+    response = client.put(
+        f"/users/{test_user.id}/payout-info",
+        json={"cbu": "2850590940090418135202", "payout_titular": "Test User", "cuil": VALID_CUIL},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code in (400, 422)
