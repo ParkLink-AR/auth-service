@@ -14,7 +14,7 @@ def delete_all_spots_for_owner(owner_id: UUID) -> None:
     user -- called only from delete_user, when the account is closed for
     good. Direct service-to-service call on the docker network, same
     convention as parking-service's own BookingClientService: no gateway
-    route, no auth header, just the internal URL.
+    route, authenticated with the shared INTERNAL_SERVICE_KEY.
 
     Raises on any failure instead of best-effort swallowing it: this runs
     before the user row itself is deleted, so failing loudly here means the
@@ -24,7 +24,11 @@ def delete_all_spots_for_owner(owner_id: UUID) -> None:
     url = f"{settings.PARKING_SERVICE_URL}/users/{owner_id}/parking-spots"
 
     try:
-        response = httpx.delete(url, timeout=10.0)
+        response = httpx.delete(
+            url,
+            headers={"X-Internal-Key": settings.INTERNAL_SERVICE_KEY},
+            timeout=10.0,
+        )
     except httpx.HTTPError as e:
         logger.error(f"[USERS] Error de red borrando cocheras de owner_id={owner_id}: {e}")
         raise ServiceException(

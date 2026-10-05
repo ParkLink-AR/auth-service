@@ -7,6 +7,11 @@ INSECURE_SECRET_SUBSTRINGS = ["dev-secret", "change-me", "reemplazar", "secret12
 
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
+    # Shared secrets proving a request came through the ParkLink gateway or from another
+    # ParkLink service (see app/trusted_caller.py). Both empty = every request passes, for
+    # a bare local run outside docker compose.
+    GATEWAY_INTERNAL_SECRET: str = ""
+    INTERNAL_SERVICE_KEY: str = ""
     DATABASE_URL: str
 
     # JWT

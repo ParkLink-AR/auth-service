@@ -18,6 +18,6 @@ def get_payout_status(
     db: Session = Depends(get_db),
 ):
     """Called service-to-service by parking-service, direct on the docker
-    network -- same convention as app/utils/parking_client.py's own calls the
-    other direction: no gateway route, no auth header."""
+    network -- no gateway route; app/trusted_caller.py only lets it through
+    with the shared INTERNAL_SERVICE_KEY."""
     return schemas.PayoutStatusOut(has_payout_info=users_service.get_payout_status(db, id))

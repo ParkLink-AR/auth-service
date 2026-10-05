@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 from loguru import logger
 
+from app.trusted_caller import TrustedCallerMiddleware
 from app.database import Base, SessionLocal, engine
 from app import models  # noqa: F401 -- registers all models on Base.metadata for create_all()
 from app.api import admin, admin_auth, auth, internal, user
@@ -59,6 +60,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ParkLink Auth Service", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(TrustedCallerMiddleware)
 
 app.add_middleware(ErrorHandlerMiddleware)
 app.add_middleware(
