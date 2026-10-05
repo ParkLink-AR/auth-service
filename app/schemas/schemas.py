@@ -447,6 +447,12 @@ AR_MOTO_OLD_PLATE_FORMAT = re.compile(r"^\d{3}[A-Z]{3}$")
 AR_MOTO_MERCOSUR_PLATE_FORMAT = re.compile(r"^[A-Z]\d{3}[A-Z]{3}$")
 
 
+def _capitalize_words(text: str) -> str:
+    """First letter of every word uppercase, the rest left as typed -- "honda xr 250" ->
+    "Honda Xr 250", while "BMW" or "XR 250" stay as they are. Extra spaces collapse."""
+    return " ".join(word[:1].upper() + word[1:] for word in text.split())
+
+
 class VehicleCreate(BaseModel):
     plate: VehiclePlateStr
     brand: VehicleBrandStr
@@ -456,7 +462,14 @@ class VehicleCreate(BaseModel):
     @field_validator("plate")
     @classmethod
     def plate_validator(cls, v: str) -> str:
-        return v.strip().upper()
+        # Stored the way it's printed on the plate: uppercase, no spaces or dashes
+        # ("ab 123-cd" -> "AB123CD").
+        return re.sub(r"[\s\-.]", "", v).upper()
+
+    @field_validator("brand", "model")
+    @classmethod
+    def name_validator(cls, v: str) -> str:
+        return _capitalize_words(v)
 
     @field_validator("country")
     @classmethod

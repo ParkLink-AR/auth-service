@@ -231,3 +231,30 @@ def test_delete_vehicle_requires_self(client, test_user, db):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
+
+
+def test_create_vehicle_normalizes_plate_and_capitalizes_names(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": " ab 123-cd ", "brand": "honda", "model": "xr 250  tornado", "country": "ar"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["plate"] == "AB123CD"
+    assert body["brand"] == "Honda"
+    assert body["model"] == "Xr 250 Tornado"
+
+
+def test_create_vehicle_keeps_existing_capitals(client, test_user):
+    token = _login(client, test_user)
+    response = client.post(
+        f"/users/{test_user.id}/vehicles",
+        json={"plate": "a123bcd", "brand": "BMW", "model": "XR 250", "country": "AR"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["brand"] == "BMW"
+    assert body["model"] == "XR 250"
