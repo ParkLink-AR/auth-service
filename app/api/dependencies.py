@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, security
 from app.exceptions.handler import ServiceException
-from app.models import UserStatus
+from app.services import account_lifecycle
 
 
 def get_current_user(
@@ -44,9 +44,9 @@ def get_current_user(
             status_code=404, title="Not Found", detail="User not found"
         )
 
-    if user.status != UserStatus.ACTIVE:
-        raise ServiceException(
-            status_code=403, title="Forbidden", detail="This account is not active."
-        )
+    # Only an active account can use its session -- a suspended or closing one is out
+    # even with a still-valid token, with the same coded reason the login gives (e.g.
+    # ACCOUNT_SUSPENDED), so the app can log it out and say why.
+    account_lifecycle.ensure_can_log_in(user)
 
     return user

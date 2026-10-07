@@ -4,6 +4,7 @@ from datetime import date
 os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["JWT_SECRET"] = "test-secret"
 os.environ.setdefault("SKIP_EMAIL_VERIFICATION", "false")
+os.environ["ACCOUNT_LIFECYCLE_JOB_ENABLED"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

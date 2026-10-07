@@ -43,17 +43,28 @@ def _fallback_link(url: str) -> str:
     """
 
 
+_NOT_YOU_NOTE = "Si no fuiste vos quien solicitó esto, podés ignorar este correo con tranquilidad."
+
+
 def _base_template(
     preheader: str,
     greeting: str,
     message_html: str,
-    expiration_text: str,
+    expiration_text: Optional[str],
     button_label: Optional[str] = None,
     button_url: Optional[str] = None,
+    footer_note: str = _NOT_YOU_NOTE,
 ) -> str:
     action_block = (
         f"{_button(button_label, button_url)}{_fallback_link(button_url)}"
         if button_url
+        else ""
+    )
+    expiration_block = (
+        f"""<p style="font-size: 12.5px; color: #9A6B00; background-color: #FFF6E0; border: 1px solid #F5E2AD; border-radius: 6px; padding: 10px 14px; margin: 0;">
+                {expiration_text}
+              </p>"""
+        if expiration_text
         else ""
     )
     return f"""
@@ -85,15 +96,13 @@ def _base_template(
           <tr>
             <td style="padding: 4px 36px 8px; text-align: center;">
               {action_block}
-              <p style="font-size: 12.5px; color: #9A6B00; background-color: #FFF6E0; border: 1px solid #F5E2AD; border-radius: 6px; padding: 10px 14px; margin: 0;">
-                {expiration_text}
-              </p>
+              {expiration_block}
             </td>
           </tr>
           <tr>
             <td style="padding: 20px 36px 32px; text-align: center;">
               <p style="font-size: 12.5px; color: {TEXT_MUTED}; background-color: {GRAY_BG}; padding: 12px 14px; border-radius: 6px; margin: 0;">
-                Si no fuiste vos quien solicitó esto, podés ignorar este correo con tranquilidad.
+                {footer_note}
               </p>
             </td>
           </tr>
@@ -170,4 +179,96 @@ def get_reset_password_email_html(code: str) -> str:
             f"Ingresá este código en la app para elegir una nueva:</p>{code_block}"
         ),
         expiration_text="Este código vence en 30 minutos.",
+    )
+
+
+# -------------------------
+# Account lifecycle notices (see app/services/account_lifecycle.py)
+# -------------------------
+
+
+def _paragraphs(*texts: str) -> str:
+    return "".join(f"<p style='margin:0 0 12px;'>{text}</p>" for text in texts)
+
+
+def _support_note(support_email: str) -> str:
+    return f"Si tenés alguna duda, escribinos a {support_email}."
+
+
+def get_account_deletion_scheduled_email_html(deletion_date: str, can_cancel: bool, support_email: str) -> str:
+    cancel_text = (
+        "Si te arrepentís, iniciá sesión en la app antes de esa fecha y elegí "
+        "<strong>reactivar tu cuenta</strong>."
+        if can_cancel
+        else f"Si no pediste esto, escribinos cuanto antes a {support_email}."
+    )
+    return _base_template(
+        preheader=f"Tu cuenta de ParkLink se eliminará el {deletion_date}.",
+        greeting="Recibimos tu pedido de eliminar la cuenta",
+        message_html=_paragraphs(
+            f"Tu cuenta de ParkLink se va a eliminar el <strong>{deletion_date}</strong>. "
+            "Ese día borramos tus datos personales: nombre, email, teléfono, DNI, foto, "
+            "vehículos y datos de cobro.",
+            "Desde ahora tus cocheras no aparecen en las búsquedas, no podés hacer reservas "
+            "nuevas y cancelamos, con reembolso total, las reservas que todavía no empezaron.",
+            cancel_text,
+        ),
+        expiration_text=None,
+        footer_note=_support_note(support_email),
+    )
+
+
+def get_account_deletion_cancelled_email_html(support_email: str) -> str:
+    return _base_template(
+        preheader="Cancelaste la eliminación de tu cuenta de ParkLink.",
+        greeting="Tu cuenta sigue activa",
+        message_html=_paragraphs(
+            "Cancelaste la eliminación de tu cuenta, así que no vamos a borrar tus datos.",
+            "Tus cocheras volvieron a estar publicadas. Las reservas que se cancelaron cuando "
+            "pediste la baja siguen canceladas.",
+        ),
+        expiration_text=None,
+        footer_note=_support_note(support_email),
+    )
+
+
+def get_account_deleted_email_html(support_email: str) -> str:
+    return _base_template(
+        preheader="Eliminamos tu cuenta de ParkLink.",
+        greeting="Eliminamos tu cuenta",
+        message_html=_paragraphs(
+            "Tal como pediste, eliminamos tu cuenta de ParkLink y borramos tus datos personales.",
+            "Conservamos, sin datos que te identifiquen, los registros de reservas y pagos que "
+            "la ley nos obliga a guardar. Si querés volver, podés crear una cuenta nueva cuando quieras.",
+        ),
+        expiration_text=None,
+        footer_note=_support_note(support_email),
+    )
+
+
+def get_account_suspended_email_html(support_email: str) -> str:
+    return _base_template(
+        preheader="Tu cuenta de ParkLink fue suspendida.",
+        greeting="Tu cuenta fue suspendida",
+        message_html=_paragraphs(
+            "Suspendimos tu cuenta de ParkLink. Mientras esté suspendida no vas a poder iniciar "
+            "sesión, tus cocheras no aparecen en las búsquedas y cancelamos, con reembolso total, "
+            "las reservas que todavía no empezaron.",
+            f"Para regularizar el estado de tu cuenta, escribinos a <strong>{support_email}</strong>.",
+        ),
+        expiration_text=None,
+        footer_note=_support_note(support_email),
+    )
+
+
+def get_account_reactivated_email_html(support_email: str) -> str:
+    return _base_template(
+        preheader="Tu cuenta de ParkLink está activa otra vez.",
+        greeting="Reactivamos tu cuenta",
+        message_html=_paragraphs(
+            "Tu cuenta de ParkLink está activa otra vez: ya podés iniciar sesión y tus cocheras "
+            "volvieron a estar publicadas.",
+        ),
+        expiration_text=None,
+        footer_note=_support_note(support_email),
     )

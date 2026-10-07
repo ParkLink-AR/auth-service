@@ -180,3 +180,15 @@ def mark_used(db: Session, token: models.VerificationToken) -> None:
     token.used_at = datetime.now(timezone.utc)
     db.add(token)
     db.commit()
+
+
+def purge_expired_verification_tokens(db: Session, older_than: datetime) -> int:
+    """Deletes verification codes (email change, password reset...) expired before
+    `older_than` -- they can never be used again."""
+    deleted = (
+        db.query(models.VerificationToken)
+        .filter(models.VerificationToken.expires_at < older_than)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return deleted

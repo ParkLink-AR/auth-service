@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from app.api.dependencies import get_current_user
 from app.database import get_db
+from app.services import account_lifecycle
 from app.services import users as users_service
 from app.services import vehicles as vehicles_service
 
@@ -127,14 +128,28 @@ def confirm_phone_change(
     return users_service.confirm_phone_change(id, payload, db, current_user)
 
 
-@router.delete("/{id}", response_model=dict)
-def delete_user(
+@router.get("/{id}/deletion", response_model=schemas.AccountClosureSummaryOut)
+def get_deletion_summary(
     id: UUID,
-    payload: schemas.AccountDeleteRequest,
+    current_user: models.User = Depends(get_current_user),
+):
+    """What deleting the account would do (bookings cancelled, money still owed, whether a
+    booking in progress blocks it), shown before the user confirms."""
+    users_service._require_self(id, current_user)
+    return account_lifecycle.closure_summary(current_user)
+
+
+@router.post("/{id}/deletion", response_model=schemas.UserOut)
+def request_deletion(
+    id: UUID,
+    payload: schemas.AccountDeletionRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return users_service.delete_user(id, payload, db, current_user)
+    """Schedules the account's deletion (ACCOUNT_DELETION_GRACE_DAYS from now) and closes
+    every session. Until then, logging in offers to reactivate it (/auth/reactivate)."""
+    users_service._require_self(id, current_user)
+    return account_lifecycle.request_deletion(db, current_user, payload.password)
 
 
 @router.get("/{id}/vehicles", response_model=list[schemas.VehicleOut])

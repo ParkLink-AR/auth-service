@@ -20,4 +20,14 @@ def get_payout_status(
     """Called service-to-service by parking-service, direct on the docker
     network -- no gateway route; app/trusted_caller.py only lets it through
     with the shared INTERNAL_SERVICE_KEY."""
-    return schemas.PayoutStatusOut(has_payout_info=users_service.get_payout_status(db, id))
+    return users_service.get_payout_status(db, id)
+
+
+@router.get("/users/{id}/account-status", response_model=schemas.AccountStatusOut)
+def get_account_status(
+    id: UUID,
+    db: Session = Depends(get_db),
+):
+    """Called by booking-service before taking a new booking: only an ACTIVE account can
+    book (not a suspended one, nor one being deleted)."""
+    return users_service.get_account_status(db, id)

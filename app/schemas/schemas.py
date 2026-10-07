@@ -295,6 +295,9 @@ class UserOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_login_at: Optional[datetime] = None
+    # Set while status is PENDING_DELETION: when the data gets wiped. The app shows it in
+    # the "your account will be deleted on..." banner, with a button to cancel.
+    deletion_scheduled_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -336,10 +339,6 @@ class UserUpdate(BaseModel):
     first_name: Optional[NameStr] = None
     last_name: Optional[NameStr] = None
     account_type: Optional[AccountType] = None
-
-
-class AccountDeleteRequest(BaseModel):
-    password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class PasswordVerifyRequest(BaseModel):
@@ -415,6 +414,45 @@ class PayoutStatusOut(BaseModel):
     """Internal (service-to-service) shape -- see app/api/internal.py."""
 
     has_payout_info: bool
+    # parking-service won't publish a spot for an account that isn't ACTIVE.
+    account_status: UserStatus
+
+
+class AccountStatusOut(BaseModel):
+    """Internal: booking-service won't take new bookings from an account that isn't ACTIVE."""
+
+    status: UserStatus
+
+
+# -------------------------
+# ACCOUNT LIFECYCLE (deletion / suspension -- see app/services/account_lifecycle.py)
+# -------------------------
+
+
+class AccountDeletionRequest(BaseModel):
+    password: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class AdminAccountActionRequest(BaseModel):
+    """Why an admin suspends an account or deletes it at the holder's request -- kept on
+    the account, for the record."""
+
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)]
+
+
+class AccountClosureSummaryOut(BaseModel):
+    """What closing (or suspending) the account would do, shown before confirming."""
+
+    blocked: bool
+    blocked_reason: Optional[str] = None
+    in_progress_count: int
+    driver_bookings_to_cancel: int
+    owner_bookings_to_cancel: int
+    owner_requests_to_reject: int
+    pending_payout_count: int
+    pending_payout_amount: int  # centavos
+    spot_count: int
+    deletion_date: datetime
 
 
 # -------------------------
@@ -534,6 +572,14 @@ class AdminUserDetailOut(AdminUserSearchOut):
     email_verified: bool
     phone_verified: bool
     last_login_at: Optional[datetime] = None
+    suspended_at: Optional[datetime] = None
+    suspended_by_admin_id: Optional[UUID] = None
+    suspension_reason: Optional[str] = None
+    deletion_requested_at: Optional[datetime] = None
+    deletion_scheduled_at: Optional[datetime] = None
+    deletion_requested_by_admin_id: Optional[UUID] = None
+    deletion_reason: Optional[str] = None
+    deleted_at: Optional[datetime] = None
 
     @computed_field
     @property

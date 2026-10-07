@@ -14,7 +14,6 @@ from app.models import VerificationTokenType
 from app.repositories import tokens as tokens_repository
 from app.repositories import users as users_repository
 from app.services import auth_service
-from app.utils import parking_client
 from app.utils.avatar import delete_avatar_file, save_avatar
 from app.utils.email import send_email_change_email
 from app.utils.sms import send_registration_sms
@@ -297,14 +296,21 @@ def update_payout_info(
     return current_user
 
 
-def get_payout_status(db: Session, user_id) -> bool:
+def get_payout_status(db: Session, user_id) -> schemas.PayoutStatusOut:
     """Used by parking-service (internal, service-to-service) to check
-    whether an owner has payout info on file, e.g. before allowing a spot to
-    go live -- see app/api/internal.py."""
+    whether an owner has payout info on file and an active account, e.g. before
+    allowing a spot to go live -- see app/api/internal.py."""
     user = users_repository.get_by_id(db, user_id)
     if not user:
         raise ServiceException(status_code=404, title="Not Found", detail="User not found.")
-    return _has_payout_info(user)
+    return schemas.PayoutStatusOut(has_payout_info=_has_payout_info(user), account_status=user.status)
+
+
+def get_account_status(db: Session, user_id) -> schemas.AccountStatusOut:
+    user = users_repository.get_by_id(db, user_id)
+    if not user:
+        raise ServiceException(status_code=404, title="Not Found", detail="User not found.")
+    return schemas.AccountStatusOut(status=user.status)
 
 
 # -------------------------
@@ -344,28 +350,3 @@ def change_password(
 
     logger.info(f"[USERS] Contraseña actualizada: user_id={current_user.id}")
     return {"message": "Password updated successfully."}
-
-
-def delete_user(user_id, payload: schemas.AccountDeleteRequest, db: Session, current_user: models.User) -> dict:
-    _require_self(user_id, current_user)
-
-    if not security.verify_password(payload.password, current_user.password_hash):
-        raise ServiceException(
-            status_code=401, title="Unauthorized", detail="Incorrect password."
-        )
-
-    # Nothing destructive happens until both of these succeed -- if
-    # parking-service is unreachable this raises and the request aborts with
-    # the account (and everything in it) still intact.
-    parking_client.delete_all_spots_for_owner(current_user.id)
-    delete_avatar_file(current_user.avatar_url)
-
-    # Hard delete, not a soft/status flag: there's no real user data worth
-    # keeping around once they've asked for this, and refresh_tokens /
-    # verification_tokens cascade at the DB level (ondelete="CASCADE" on
-    # their user_id FK), so no manual cleanup needed for those.
-    db.delete(current_user)
-    db.commit()
-
-    logger.info(f"[USERS] Cuenta eliminada definitivamente: user_id={user_id}")
-    return {"message": "Account deleted successfully."}

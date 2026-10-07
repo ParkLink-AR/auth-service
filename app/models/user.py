@@ -10,7 +10,14 @@ from .guid import GUID
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
+    # Suspended by a ParkLink admin: can't log in, spots paused, data intact. Only an
+    # admin can reactivate it (see app/services/account_lifecycle.py).
     SUSPENDED = "SUSPENDED"
+    # The account asked to be deleted (or an admin did, at the holder's request) and is
+    # waiting out the grace period -- see deletion_scheduled_at.
+    PENDING_DELETION = "PENDING_DELETION"
+    # Personal data already wiped (anonymized): the row stays only so bookings, payments
+    # and reviews in the other services keep pointing at something.
     DELETED = "DELETED"
 
 
@@ -69,3 +76,17 @@ class User(Base):
     payout_titular = Column(String(160), nullable=True)
     cuil = Column(String(11), nullable=True)
     payout_info_updated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Account lifecycle (see app/services/account_lifecycle.py). Added after the table
+    # already existed in deployed databases, so app/schema_updates.py adds them there.
+    suspended_at = Column(DateTime(timezone=True), nullable=True)
+    suspended_by_admin_id = Column(GUID(), nullable=True)
+    suspension_reason = Column(String(500), nullable=True)
+    deletion_requested_at = Column(DateTime(timezone=True), nullable=True)
+    deletion_scheduled_at = Column(DateTime(timezone=True), nullable=True)
+    # Set when an admin scheduled the deletion at the holder's request (by email, etc.)
+    # instead of the user doing it from the app -- such a deletion can't be cancelled by
+    # logging in.
+    deletion_requested_by_admin_id = Column(GUID(), nullable=True)
+    deletion_reason = Column(String(500), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)

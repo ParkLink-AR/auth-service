@@ -43,9 +43,22 @@ class Settings(BaseSettings):
     # Useful for local dev/tests without Twilio configured.
     SKIP_PHONE_VERIFICATION: bool = False
 
-    # Called directly (not through the gateway) when an account is closed
-    # for good, to wipe the owner's parking spots -- see app/utils/parking_client.py.
+    # Called directly (not through the gateway) by the account lifecycle -- suspending,
+    # closing or deleting an account pauses/archives the owner's spots, cancels its
+    # bookings and drops its push tokens. See app/services/account_lifecycle.py.
     PARKING_SERVICE_URL: str = "http://parking-service:3001"
+    BOOKING_SERVICE_URL: str = "http://booking-service:8080"
+    NOTIFICATIONS_SERVICE_URL: str = "http://notifications-service:8000"
+
+    # Where a suspended user is told to write to get their account sorted out.
+    SUPPORT_EMAIL: str = "soporte@parklink.com.ar"
+    # How long a deletion asked for from the app waits before the data is wiped. Ley
+    # 25.326 (art. 16) gives 5 business days to act on a deletion request; 7 calendar
+    # days always fall within them.
+    ACCOUNT_DELETION_GRACE_DAYS: int = 7
+    # Background job that wipes accounts whose grace period is over (see main.py).
+    ACCOUNT_LIFECYCLE_JOB_ENABLED: bool = True
+    ACCOUNT_LIFECYCLE_JOB_INTERVAL_SECONDS: int = 3600
 
     # Cloudflare R2 (S3-compatible object storage) -- avatars are uploaded
     # here instead of local disk, which doesn't survive a Render redeploy.

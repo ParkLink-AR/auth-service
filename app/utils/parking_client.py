@@ -2,44 +2,35 @@ from __future__ import annotations
 
 from uuid import UUID
 
-import httpx
-from loguru import logger
-
 from app.config import settings
-from app.exceptions.handler import ServiceException
+from app.utils.internal_http import call_internal
 
 
-def delete_all_spots_for_owner(owner_id: UUID) -> None:
-    """Hard-deletes every parking spot (and their R2 photos) owned by this
-    user -- called only from delete_user, when the account is closed for
-    good. Direct service-to-service call on the docker network, same
-    convention as parking-service's own BookingClientService: no gateway
-    route, authenticated with the shared INTERNAL_SERVICE_KEY.
+def _owner_url(owner_id: UUID, action: str) -> str:
+    return f"{settings.PARKING_SERVICE_URL}/internal/owners/{owner_id}/parking-spots/{action}"
 
-    Raises on any failure instead of best-effort swallowing it: this runs
-    before the user row itself is deleted, so failing loudly here means the
-    account deletion aborts with nothing destroyed yet, rather than silently
-    leaving orphaned spots/photos behind with no user left to retry against.
-    """
-    url = f"{settings.PARKING_SERVICE_URL}/users/{owner_id}/parking-spots"
 
-    try:
-        response = httpx.delete(
-            url,
-            headers={"X-Internal-Key": settings.INTERNAL_SERVICE_KEY},
-            timeout=10.0,
-        )
-    except httpx.HTTPError as e:
-        logger.error(f"[USERS] Error de red borrando cocheras de owner_id={owner_id}: {e}")
-        raise ServiceException(
-            status_code=502, title="Bad Gateway", detail="Could not reach parking-service."
-        )
+def pause_owner_spots(owner_id: UUID) -> list[str]:
+    """Takes every spot of this owner out of search while their account is suspended or
+    being deleted (marked as paused by the account, so restore_owner_spots brings back
+    exactly those). Returns the ids of all the owner's (non-deleted) spots."""
+    response = call_internal("POST", _owner_url(owner_id, "pause"), "pause the owner's parking spots")
+    return list(response.get("spot_ids", [])) if response else []
 
-    if response.status_code >= 400:
-        logger.error(
-            f"[USERS] parking-service devolvió status={response.status_code} "
-            f"borrando cocheras de owner_id={owner_id}: {response.text}"
-        )
-        raise ServiceException(
-            status_code=502, title="Bad Gateway", detail="Failed to delete owner's parking spots."
-        )
+
+def restore_owner_spots(owner_id: UUID) -> None:
+    """Undoes pause_owner_spots once the account is active again."""
+    call_internal("POST", _owner_url(owner_id, "restore"), "restore the owner's parking spots")
+
+
+def archive_owner_spots(owner_id: UUID) -> None:
+    """Marks every spot of this owner as deleted and drops its photos and documentation --
+    the last step of deleting the account. The rows stay for the bookings that point at them."""
+    call_internal("POST", _owner_url(owner_id, "archive"), "archive the owner's parking spots")
+
+
+def list_owner_spot_ids(owner_id: UUID) -> list[str]:
+    response = call_internal(
+        "GET", f"{settings.PARKING_SERVICE_URL}/users/{owner_id}/parking-spots", "list the owner's parking spots"
+    )
+    return [spot["id"] for spot in response or []]

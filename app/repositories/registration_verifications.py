@@ -90,3 +90,17 @@ def mark_used(db: Session, verification: models.RegistrationVerification) -> Non
     verification.used_at = datetime.now(timezone.utc)
     db.add(verification)
     db.commit()
+
+
+def purge_stale(db: Session, older_than: datetime) -> int:
+    """Deletes every verification that stopped being useful before `older_than` (expired
+    unconfirmed codes, and verified ones whose grace period ran out or that were already
+    used). Each row holds the email or phone someone typed in -- an abandoned signup has
+    no reason to keep it (Ley 25.326, art. 4 inc. 7)."""
+    deleted = (
+        db.query(models.RegistrationVerification)
+        .filter(models.RegistrationVerification.expires_at < older_than)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return deleted

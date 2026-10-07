@@ -62,6 +62,13 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
     return auth_service.login(payload, db, request)
 
 
+@router.post("/reactivate", response_model=Token)
+def reactivate(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
+    """Logging in to an account whose deletion is scheduled: cancels the deletion and
+    returns a session, with the same credentials as /auth/login."""
+    return auth_service.reactivate_and_log_in(payload, db, request)
+
+
 @router.post("/refresh", response_model=Token)
 def refresh(payload: RefreshRequest, request: Request, db: Session = Depends(get_db)):
     return auth_service.refresh(payload, db, request)

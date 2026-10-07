@@ -553,3 +553,91 @@ def test_email_verification_request_is_generic_for_unknown_email(client):
         "/auth/email-verification/request", json={"email": "ghost@example.com"}
     )
     assert response.status_code == 200
+
+
+# -------------------------
+# Coming back to an unfinished signup, and cleaning up abandoned ones
+# -------------------------
+
+
+def test_requesting_a_code_for_an_already_verified_email_skips_it(client, db):
+    email = "back@example.com"
+    _verify_email_for_registration(client, db, email)
+    rows_before = db.query(RegistrationVerification).count()
+
+    response = client.post("/auth/registration/email/request", json={"email": email})
+
+    assert response.status_code == 200
+    assert response.json()["already_verified"] is True
+    # No new code was issued (nor the rate limit hit).
+    assert db.query(RegistrationVerification).count() == rows_before
+
+
+def test_requesting_a_code_for_an_already_verified_phone_skips_it(client, db):
+    phone = "+5491100000123"
+    _verify_phone_for_registration(client, db, phone)
+
+    response = client.post("/auth/registration/phone/request", json={"phone": phone})
+
+    assert response.json()["already_verified"] is True
+
+
+def test_a_new_email_gets_a_code(client):
+    response = client.post("/auth/registration/email/request", json={"email": "fresh@example.com"})
+    assert response.json()["already_verified"] is False
+
+
+def test_purge_deletes_only_verifications_stale_for_over_a_day(db, test_user):
+    from app.services.auth_service import purge_stale_verifications
+
+    now = datetime.now(timezone.utc)
+    for target, expires in (("old@example.com", now - timedelta(days=2)), ("recent@example.com", now - timedelta(hours=1))):
+        db.add(RegistrationVerification(type=VerificationTokenType.EMAIL, target=target, token_hash="x", expires_at=expires))
+    db.add(VerificationToken(user_id=test_user.id, type=VerificationTokenType.PASSWORD_RESET, token_hash="y", expires_at=now - timedelta(days=3)))
+    db.commit()
+
+    assert purge_stale_verifications(db) == 2
+
+    assert [row.target for row in db.query(RegistrationVerification).all()] == ["recent@example.com"]
+    assert db.query(VerificationToken).count() == 0
+
+
+# -------------------------
+# Fixing a mistyped email/phone mid-signup ("Cambiar email" / "Cambiar número")
+# -------------------------
+
+
+def test_the_code_sent_to_the_old_email_does_not_verify_the_new_one(client, db):
+    old, new = "typo@exampel.com", "right@example.com"
+    client.post("/auth/registration/email/request", json={"email": old})
+    _force_registration_code(db, VerificationTokenType.EMAIL, old, "111111")
+    client.post("/auth/registration/email/request", json={"email": new})
+    _force_registration_code(db, VerificationTokenType.EMAIL, new, "222222")
+
+    wrong = client.post("/auth/registration/email/confirm", json={"email": new, "code": "111111"})
+    assert wrong.status_code == 400
+    right = client.post("/auth/registration/email/confirm", json={"email": new, "code": "222222"})
+    assert right.status_code == 200
+
+
+def test_the_code_sent_to_the_old_phone_does_not_verify_the_new_one(client, db):
+    old, new = "+5491100000111", "+5491100000222"
+    client.post("/auth/registration/phone/request", json={"phone": old})
+    _force_registration_code(db, VerificationTokenType.PHONE, old, "333333")
+    client.post("/auth/registration/phone/request", json={"phone": new})
+    _force_registration_code(db, VerificationTokenType.PHONE, new, "444444")
+
+    wrong = client.post("/auth/registration/phone/confirm", json={"phone": new, "code": "333333"})
+    assert wrong.status_code == 400
+    right = client.post("/auth/registration/phone/confirm", json={"phone": new, "code": "444444"})
+    assert right.status_code == 200
+
+
+def test_registering_needs_the_final_email_itself_verified(client, db, valid_user_data):
+    # Only the mistyped email got verified; the account asks for the corrected one.
+    _verify_email_for_registration(client, db, "typo@exampel.com")
+    _verify_phone_for_registration(client, db, valid_user_data["phone"])
+
+    response = client.post("/auth/register", json=valid_user_data)
+
+    assert response.status_code in (400, 403)

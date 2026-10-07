@@ -170,13 +170,13 @@ def test_internal_payout_status_true_when_all_fields_set(client, test_user, db):
 
     response = client.get(f"/internal/users/{test_user.id}/payout-status")
     assert response.status_code == 200
-    assert response.json() == {"has_payout_info": True}
+    assert response.json() == {"has_payout_info": True, "account_status": "ACTIVE"}
 
 
 def test_internal_payout_status_false_when_incomplete(client, test_user):
     response = client.get(f"/internal/users/{test_user.id}/payout-status")
     assert response.status_code == 200
-    assert response.json() == {"has_payout_info": False}
+    assert response.json() == {"has_payout_info": False, "account_status": "ACTIVE"}
 
 
 def test_internal_payout_status_requires_no_auth_header(client, test_user):

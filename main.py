@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 from loguru import logger
@@ -15,6 +16,9 @@ from app.exceptions.handler import ServiceException, problem_details_handler
 from app.logger import setup_logger
 from app.models import AdminAccount, AdminRole
 from app.security import hash_password
+from app.config import settings
+from app.schema_updates import apply_schema_updates
+from app.services import account_lifecycle, auth_service
 from app.services.admin_auth import PROTECTED_SUPERADMIN_USERNAME
 
 setup_logger()
@@ -46,16 +50,58 @@ def _seed_first_superadmin() -> None:
         db.close()
 
 
+def _finalize_due_deletions() -> int:
+    db = SessionLocal()
+    try:
+        return account_lifecycle.finalize_due_deletions(db)
+    finally:
+        db.close()
+
+
+def _purge_stale_verifications() -> int:
+    db = SessionLocal()
+    try:
+        return auth_service.purge_stale_verifications(db)
+    finally:
+        db.close()
+
+
+async def _account_lifecycle_job() -> None:
+    """Every ACCOUNT_LIFECYCLE_JOB_INTERVAL_SECONDS: wipes the personal data of every
+    account whose deletion grace period is over (account_lifecycle.finalize_due_deletions),
+    and deletes stale signup verifications and codes (auth_service.purge_stale_verifications)."""
+    while True:
+        try:
+            deleted = await asyncio.to_thread(_finalize_due_deletions)
+            if deleted:
+                logger.info(f"[ACCOUNT] Cuentas eliminadas en esta pasada: {deleted}")
+        except Exception as exc:  # noqa: BLE001 - the job must keep running
+            logger.error(f"[ACCOUNT] Falló la pasada de eliminación de cuentas: {exc}")
+        try:
+            purged = await asyncio.to_thread(_purge_stale_verifications)
+            if purged:
+                logger.info(f"[AUTH] Verificaciones vencidas borradas: {purged}")
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"[AUTH] Falló la limpieza de verificaciones: {exc}")
+        await asyncio.sleep(settings.ACCOUNT_LIFECYCLE_JOB_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # No hay datos reales que preservar en ningún ambiente todavía, así que
     # el esquema se crea directo desde los modelos en vez de mantener un
-    # historial de migraciones -- create_all no toca tablas que ya existen.
+    # historial de migraciones -- create_all no toca tablas que ya existen
+    # (las columnas que se agregan después las suma apply_schema_updates).
     Base.metadata.create_all(bind=engine)
+    apply_schema_updates(engine)
     _seed_first_superadmin()
+
+    job = asyncio.create_task(_account_lifecycle_job()) if settings.ACCOUNT_LIFECYCLE_JOB_ENABLED else None
 
     logger.info("[STARTUP] ParkLink Auth Service iniciado")
     yield
+    if job:
+        job.cancel()
     logger.info("[SHUTDOWN] ParkLink Auth Service detenido")
 
 

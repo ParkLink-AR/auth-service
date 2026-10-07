@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app import models, schemas, security
 from app.config import settings
 from app.exceptions.handler import ServiceException
-from app.models import UserStatus, VerificationTokenType
+from app.models import VerificationTokenType
+from app.services import account_lifecycle
 from app.repositories import registration_verifications as registration_verifications_repository
 from app.repositories import tokens as tokens_repository
 from app.repositories import users as users_repository
@@ -163,8 +164,14 @@ def _confirm_registration_code(
 
 
 def request_email_registration(payload: schemas.EmailVerificationRequest, db: Session) -> dict:
-    if users_repository.get_by_email(db, payload.email):
-        raise ServiceException(status_code=400, title="Bad Request", detail="Email is already registered.")
+    account_lifecycle.ensure_identifier_available(
+        users_repository.get_by_email(db, payload.email), "Email is already registered."
+    )
+
+    # Verified a moment ago (still within the grace period) and coming back to the
+    # wizard, e.g. after closing the app: no need for another code.
+    if registration_verifications_repository.get_verified_for_target(db, VerificationTokenType.EMAIL, payload.email):
+        return {"message": "Email already verified.", "already_verified": True}
 
     _check_registration_rate_limit(
         db, VerificationTokenType.EMAIL, payload.email, "requesting another code"
@@ -174,7 +181,7 @@ def request_email_registration(payload: schemas.EmailVerificationRequest, db: Se
     )
     send_verification_email(to_email=payload.email, code=code)
     logger.info(f"[AUTH] Código de registro (email) enviado a {payload.email}")
-    return {"message": "Verification code sent."}
+    return {"message": "Verification code sent.", "already_verified": False}
 
 
 def confirm_email_registration(payload: schemas.EmailVerificationConfirm, db: Session) -> dict:
@@ -184,8 +191,12 @@ def confirm_email_registration(payload: schemas.EmailVerificationConfirm, db: Se
 
 
 def request_phone_registration(payload: schemas.PhoneRegistrationRequest, db: Session) -> dict:
-    if users_repository.get_by_phone(db, payload.phone):
-        raise ServiceException(status_code=400, title="Bad Request", detail="Phone is already registered.")
+    account_lifecycle.ensure_identifier_available(
+        users_repository.get_by_phone(db, payload.phone), "Phone is already registered."
+    )
+
+    if registration_verifications_repository.get_verified_for_target(db, VerificationTokenType.PHONE, payload.phone):
+        return {"message": "Phone already verified.", "already_verified": True}
 
     _check_registration_rate_limit(
         db, VerificationTokenType.PHONE, payload.phone, "requesting another code"
@@ -195,7 +206,7 @@ def request_phone_registration(payload: schemas.PhoneRegistrationRequest, db: Se
     )
     send_registration_sms(to_phone=payload.phone, code=code)
     logger.info(f"[AUTH] Código de registro (teléfono) enviado a {payload.phone}")
-    return {"message": "Verification code sent."}
+    return {"message": "Verification code sent.", "already_verified": False}
 
 
 def confirm_phone_registration(payload: schemas.PhoneRegistrationConfirm, db: Session) -> dict:
@@ -212,20 +223,15 @@ def confirm_phone_registration(payload: schemas.PhoneRegistrationConfirm, db: Se
 def register(payload: schemas.UserCreate, db: Session) -> models.User:
     logger.debug(f"[AUTH] Intento de registro: email={payload.email}")
 
-    if users_repository.get_by_email(db, payload.email):
-        raise ServiceException(
-            status_code=400, title="Bad Request", detail="Email is already registered."
-        )
-
-    if users_repository.get_by_phone(db, payload.phone):
-        raise ServiceException(
-            status_code=400, title="Bad Request", detail="Phone is already registered."
-        )
-
-    if users_repository.get_by_dni(db, payload.dni):
-        raise ServiceException(
-            status_code=400, title="Bad Request", detail="DNI is already registered."
-        )
+    account_lifecycle.ensure_identifier_available(
+        users_repository.get_by_email(db, payload.email), "Email is already registered."
+    )
+    account_lifecycle.ensure_identifier_available(
+        users_repository.get_by_phone(db, payload.phone), "Phone is already registered."
+    )
+    account_lifecycle.ensure_identifier_available(
+        users_repository.get_by_dni(db, payload.dni), "DNI is already registered."
+    )
 
     email_verification = None
     if not settings.SKIP_EMAIL_VERIFICATION:
@@ -286,9 +292,7 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
 # -------------------------
 
 
-def login(payload: schemas.UserLogin, db: Session, request: Request | None = None) -> schemas.Token:
-    logger.debug(f"[AUTH] Intento de login: email={payload.email}, phone={payload.phone}")
-
+def _authenticate(payload: schemas.UserLogin, db: Session) -> models.User:
     user = users_repository.get_by_email(db, payload.email) if payload.email else None
     if user is None and payload.phone:
         user = users_repository.get_by_phone(db, payload.phone)
@@ -297,17 +301,37 @@ def login(payload: schemas.UserLogin, db: Session, request: Request | None = Non
         raise ServiceException(
             status_code=401, title="Unauthorized", detail="Invalid credentials."
         )
+    return user
 
-    if user.status == UserStatus.DELETED:
+
+def login(payload: schemas.UserLogin, db: Session, request: Request | None = None) -> schemas.Token:
+    logger.debug(f"[AUTH] Intento de login: email={payload.email}, phone={payload.phone}")
+
+    user = _authenticate(payload, db)
+
+    # Only an active account gets a session. Suspended or deleted ones get the reason; one
+    # waiting out a deletion the user asked for gets ACCOUNT_DELETION_SCHEDULED, which the
+    # app answers by offering to reactivate it (reactivate_and_log_in below).
+    account_lifecycle.ensure_can_log_in(user)
+
+    return _finish_login(db, user, payload, request)
+
+
+def reactivate_and_log_in(payload: schemas.UserLogin, db: Session, request: Request | None = None) -> schemas.Token:
+    """Cancels a deletion the user asked for (still within its grace period) and logs them
+    in -- the "yes, reactivate it" answer to ACCOUNT_DELETION_SCHEDULED. Same credentials
+    as the login, since there's no session yet to prove who they are."""
+    user = _authenticate(payload, db)
+    if not account_lifecycle.can_cancel_deletion(user):
+        account_lifecycle.ensure_can_log_in(user)
         raise ServiceException(
-            status_code=401, title="Unauthorized", detail="Invalid credentials."
+            status_code=409, title="Conflict", detail="Tu cuenta no tiene una eliminación para cancelar."
         )
+    account_lifecycle.cancel_deletion(db, user)
+    return _finish_login(db, user, payload, request)
 
-    if user.status == UserStatus.SUSPENDED:
-        raise ServiceException(
-            status_code=403, title="Forbidden", detail="Your account has been suspended."
-        )
 
+def _finish_login(db: Session, user: models.User, payload: schemas.UserLogin, request: Request | None) -> schemas.Token:
     if not settings.SKIP_EMAIL_VERIFICATION and not user.email_verified:
         raise ServiceException(
             status_code=403,
@@ -328,18 +352,19 @@ def refresh(payload: schemas.RefreshRequest, db: Session, request: Request | Non
     token_hash = security.hash_token(payload.refresh_token)
     existing = tokens_repository.get_refresh_token_by_hash(db, token_hash)
 
+    # Suspended or closing meanwhile (which also revoked this token): the coded reason
+    # first, not a bare 401, so the app can tell the user why they were logged out.
+    user = users_repository.get_by_id(db, existing.user_id) if existing else None
+    if user:
+        account_lifecycle.ensure_can_log_in(user)
+
     now = datetime.now(timezone.utc)
     if (
         not existing
+        or not user
         or existing.revoked_at is not None
         or existing.expires_at.replace(tzinfo=timezone.utc) < now
     ):
-        raise ServiceException(
-            status_code=401, title="Unauthorized", detail="Invalid or expired refresh token."
-        )
-
-    user = users_repository.get_by_id(db, existing.user_id)
-    if not user or user.status != UserStatus.ACTIVE:
         raise ServiceException(
             status_code=401, title="Unauthorized", detail="Invalid or expired refresh token."
         )
@@ -456,7 +481,8 @@ def confirm_email_verification(payload: schemas.EmailVerificationConfirm, db: Se
 def request_password_reset(payload: schemas.PasswordResetRequest, db: Session) -> dict:
     user = users_repository.get_by_email(db, payload.email)
 
-    if user and user.status == UserStatus.ACTIVE:
+    # A user waiting out their deletion may need a new password to log in and reactivate it.
+    if user and (account_lifecycle.is_usable(user) or account_lifecycle.can_cancel_deletion(user)):
         _check_rate_limit(
             db, user.id, VerificationTokenType.PASSWORD_RESET, "requesting another password reset"
         )
@@ -522,3 +548,21 @@ def confirm_password_reset(payload: schemas.PasswordResetConfirm, db: Session) -
     return {
         "message": "Password reset successfully. You can now log in with your new password."
     }
+
+
+# -------------------------
+# Housekeeping (run by the background job in main.py)
+# -------------------------
+
+# How long a used-up verification is kept before it's deleted -- a day of margin over any
+# code or grace period, for support to look into a signup that just failed.
+STALE_VERIFICATION_RETENTION = timedelta(hours=24)
+
+
+def purge_stale_verifications(db: Session) -> int:
+    """Deletes signup verifications (the email/phone people typed in, including signups
+    nobody finished) and verification codes that expired more than a day ago."""
+    cutoff = datetime.now(timezone.utc) - STALE_VERIFICATION_RETENTION
+    return registration_verifications_repository.purge_stale(
+        db, cutoff
+    ) + tokens_repository.purge_expired_verification_tokens(db, cutoff)
