@@ -59,8 +59,16 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
+_MONTHS = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
 def format_date(value: datetime) -> str:
-    return _as_utc(value).astimezone(ARGENTINA_TZ).strftime("%d/%m/%Y")
+    """"14 de septiembre de 2026" -- the long date format the app uses in sentences."""
+    local = _as_utc(value).astimezone(ARGENTINA_TZ)
+    return f"{local.day} de {_MONTHS[local.month - 1]} de {local.year}"
 
 
 def can_cancel_deletion(user: models.User) -> bool:
@@ -360,6 +368,7 @@ def finalize_deletion(db: Session, user: models.User) -> bool:
     parking_client.archive_owner_spots(user.id)
     booking_client.anonymize_account_bookings(user.id)
     notifications_client.delete_device_tokens(user.id)
+    notifications_client.delete_notifications(user.id)
     delete_avatar_file(user.avatar_url)
 
     # Last mail to the real address, before it's wiped.

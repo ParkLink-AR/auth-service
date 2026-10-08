@@ -13,3 +13,12 @@ def delete_device_tokens(user_id: UUID) -> None:
         f"{settings.NOTIFICATIONS_SERVICE_URL}/internal/users/{user_id}/device-tokens",
         "delete the user's push tokens",
     )
+
+
+def delete_notifications(user_id: UUID) -> None:
+    """Drops the user's whole notifications inbox -- part of deleting their data."""
+    call_internal(
+        "DELETE",
+        f"{settings.NOTIFICATIONS_SERVICE_URL}/internal/users/{user_id}/notifications",
+        "delete the user's notifications",
+    )

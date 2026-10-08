@@ -48,6 +48,7 @@ def services(monkeypatch):
     monkeypatch.setattr(booking_client, "cancel_account_bookings", record("cancel_bookings"))
     monkeypatch.setattr(booking_client, "anonymize_account_bookings", record("anonymize_bookings"))
     monkeypatch.setattr(notifications_client, "delete_device_tokens", record("delete_tokens"))
+    monkeypatch.setattr(notifications_client, "delete_notifications", record("delete_notifications"))
     return state
 
 
@@ -223,6 +224,7 @@ def test_due_deletion_wipes_the_personal_data_but_keeps_the_row(client, test_use
     assert db.query(Vehicle).filter_by(user_id=test_user.id).count() == 0
     assert _called(services, "archive") == [(test_user.id,)]
     assert _called(services, "anonymize_bookings") == [(test_user.id,)]
+    assert _called(services, "delete_notifications") == [(test_user.id,)]
 
     # The real email is free again and the old password doesn't open anything.
     assert db.query(User).filter_by(email="test@example.com").first() is None
@@ -363,3 +365,12 @@ def test_internal_account_status(client, test_user):
     response = client.get(f"/internal/users/{test_user.id}/account-status")
     assert response.status_code == 200
     assert response.json() == {"status": "ACTIVE"}
+
+
+def test_deletion_date_reads_as_a_long_date():
+    from datetime import datetime, timezone
+
+    from app.services.account_lifecycle import format_date
+
+    # 02:00 UTC on the 15th is still the 14th in Buenos Aires.
+    assert format_date(datetime(2026, 9, 15, 2, 0, tzinfo=timezone.utc)) == "14 de septiembre de 2026"
