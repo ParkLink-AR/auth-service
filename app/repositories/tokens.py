@@ -92,6 +92,11 @@ def create_verification_token(
     return token
 
 
+def delete_verification_token(db: Session, token: models.VerificationToken) -> None:
+    db.delete(token)
+    db.commit()
+
+
 def get_valid_verification_token(
     db: Session, token_hash: str, token_type: models.VerificationTokenType
 ) -> models.VerificationToken | None:

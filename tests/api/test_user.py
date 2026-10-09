@@ -434,3 +434,31 @@ def test_change_password_requires_self(client, test_user, db):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
+
+
+def test_phone_change_code_that_failed_to_send_is_undone(client, test_user, db, monkeypatch):
+    from app.exceptions.handler import ServiceException
+
+    def failing_send(**_kwargs):
+        raise ServiceException(status_code=502, title="Bad Gateway", detail="Error sending SMS.")
+
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+    monkeypatch.setattr("app.services.users.send_registration_sms", failing_send)
+
+    failed = client.post(f"/users/{test_user.id}/phone", json={"new_phone": "+5491199997777"}, headers=headers)
+
+    assert failed.status_code == 502
+    db.refresh(test_user)
+    assert test_user.pending_phone is None
+    assert (
+        db.query(VerificationToken)
+        .filter(VerificationToken.user_id == test_user.id, VerificationToken.type == VerificationTokenType.PHONE_CHANGE)
+        .count()
+        == 0
+    )
+
+    # Asking again right away works.
+    monkeypatch.setattr("app.services.users.send_registration_sms", lambda **_kwargs: None)
+    retried = client.post(f"/users/{test_user.id}/phone", json={"new_phone": "+5491199997777"}, headers=headers)
+    assert retried.status_code == 200

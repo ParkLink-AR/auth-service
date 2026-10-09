@@ -641,3 +641,39 @@ def test_registering_needs_the_final_email_itself_verified(client, db, valid_use
     response = client.post("/auth/register", json=valid_user_data)
 
     assert response.status_code in (400, 403)
+
+
+# -------------------------
+# A code that never went out (SMS/email provider down)
+# -------------------------
+
+
+def _failing_send(*_args, **_kwargs):
+    from app.exceptions.handler import ServiceException
+
+    raise ServiceException(status_code=502, title="Bad Gateway", detail="Error sending SMS.")
+
+
+def test_a_phone_code_that_failed_to_send_does_not_start_the_resend_cooldown(client, db, monkeypatch):
+    phone = "+5491100000777"
+    monkeypatch.setattr("app.services.auth_service.send_registration_sms", _failing_send)
+
+    failed = client.post("/auth/registration/phone/request", json={"phone": phone})
+
+    assert failed.status_code == 502
+    assert db.query(RegistrationVerification).filter(RegistrationVerification.target == phone).count() == 0
+
+    # Asking again right away works -- no "wait N seconds" for a code they never got.
+    monkeypatch.setattr("app.services.auth_service.send_registration_sms", lambda **_kwargs: None)
+    retried = client.post("/auth/registration/phone/request", json={"phone": phone})
+    assert retried.status_code == 200
+
+
+def test_an_email_code_that_failed_to_send_does_not_start_the_resend_cooldown(client, db, monkeypatch):
+    email = "unlucky@example.com"
+    monkeypatch.setattr("app.services.auth_service.send_verification_email", _failing_send)
+
+    assert client.post("/auth/registration/email/request", json={"email": email}).status_code == 502
+
+    monkeypatch.setattr("app.services.auth_service.send_verification_email", lambda **_kwargs: None)
+    assert client.post("/auth/registration/email/request", json={"email": email}).status_code == 200

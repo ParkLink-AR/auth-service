@@ -205,10 +205,21 @@ def request_phone_change(
         VerificationTokenType.PHONE_CHANGE,
         settings.PHONE_VERIFICATION_CODE_EXPIRE_MINUTES,
     )
+    previous_pending_phone = current_user.pending_phone
     current_user.pending_phone = new_phone
     users_repository.save(db, current_user)
 
-    send_registration_sms(to_phone=new_phone, code=code)
+    try:
+        send_registration_sms(to_phone=new_phone, code=code)
+    except ServiceException:
+        # The SMS never went out: undo the request, so the code doesn't start the resend
+        # cooldown and the pending number isn't left pointing at a code nobody received.
+        token = tokens_repository.get_latest_token(db, current_user.id, VerificationTokenType.PHONE_CHANGE)
+        if token is not None:
+            tokens_repository.delete_verification_token(db, token)
+        current_user.pending_phone = previous_pending_phone
+        users_repository.save(db, current_user)
+        raise
     logger.info(f"[USERS] Código de cambio de teléfono enviado: user_id={current_user.id}")
     return {"message": "Verification code sent to the new phone."}
 

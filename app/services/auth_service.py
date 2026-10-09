@@ -118,7 +118,7 @@ def _check_registration_rate_limit(
 
 def _issue_registration_code(
     db: Session, verification_type: VerificationTokenType, target: str, expire_minutes: int
-) -> str:
+) -> tuple[str, models.RegistrationVerification]:
     code = security.generate_numeric_code()
     verification = models.RegistrationVerification(
         type=verification_type,
@@ -127,7 +127,7 @@ def _issue_registration_code(
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=expire_minutes),
     )
     registration_verifications_repository.create(db, verification)
-    return code
+    return code, verification
 
 
 def _confirm_registration_code(
@@ -176,10 +176,15 @@ def request_email_registration(payload: schemas.EmailVerificationRequest, db: Se
     _check_registration_rate_limit(
         db, VerificationTokenType.EMAIL, payload.email, "requesting another code"
     )
-    code = _issue_registration_code(
+    code, verification = _issue_registration_code(
         db, VerificationTokenType.EMAIL, payload.email, settings.EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES
     )
-    send_verification_email(to_email=payload.email, code=code)
+    try:
+        send_verification_email(to_email=payload.email, code=code)
+    except ServiceException:
+        # Same as the phone code below: a code that never went out doesn't start the cooldown.
+        registration_verifications_repository.delete(db, verification)
+        raise
     logger.info(f"[AUTH] Código de registro (email) enviado a {payload.email}")
     return {"message": "Verification code sent.", "already_verified": False}
 
@@ -201,10 +206,16 @@ def request_phone_registration(payload: schemas.PhoneRegistrationRequest, db: Se
     _check_registration_rate_limit(
         db, VerificationTokenType.PHONE, payload.phone, "requesting another code"
     )
-    code = _issue_registration_code(
+    code, verification = _issue_registration_code(
         db, VerificationTokenType.PHONE, payload.phone, settings.PHONE_VERIFICATION_CODE_EXPIRE_MINUTES
     )
-    send_registration_sms(to_phone=payload.phone, code=code)
+    try:
+        send_registration_sms(to_phone=payload.phone, code=code)
+    except ServiceException:
+        # The SMS never went out: forget the code, so it doesn't start the resend cooldown
+        # -- the user can ask again right away instead of waiting for a code they never got.
+        registration_verifications_repository.delete(db, verification)
+        raise
     logger.info(f"[AUTH] Código de registro (teléfono) enviado a {payload.phone}")
     return {"message": "Verification code sent.", "already_verified": False}
 

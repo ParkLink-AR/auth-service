@@ -13,6 +13,11 @@ def create(db: Session, verification: models.RegistrationVerification) -> models
     return verification
 
 
+def delete(db: Session, verification: models.RegistrationVerification) -> None:
+    db.delete(verification)
+    db.commit()
+
+
 def get_active_for_target(
     db: Session, verification_type: models.VerificationTokenType, target: str
 ) -> models.RegistrationVerification | None:
