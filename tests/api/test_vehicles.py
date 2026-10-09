@@ -59,7 +59,7 @@ def test_create_vehicle_uppercases_plate_and_country(client, test_user):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "ab123cd", "brand": "Toyota", "model": "Corolla", "country": "ar"},
+        json={"type": "car", "plate": "ab123cd", "brand": "Toyota", "model": "Corolla", "country": "ar"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -75,7 +75,7 @@ def test_create_vehicle_rejects_unsupported_country(client, test_user):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "US"},
+        json={"type": "car", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "US"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
@@ -85,7 +85,7 @@ def test_create_vehicle_accepts_old_format_argentine_plate(client, test_user):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "abc123", "brand": "Ford", "model": "Falcon", "country": "AR"},
+        json={"type": "car", "plate": "abc123", "brand": "Ford", "model": "Falcon", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -96,7 +96,7 @@ def test_create_vehicle_accepts_mercosur_format_argentine_plate(client, test_use
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "ab123cd", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "ab123cd", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -107,7 +107,7 @@ def test_create_vehicle_accepts_old_format_argentine_moto_plate(client, test_use
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
+        json={"type": "car", "plate": "123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -118,7 +118,7 @@ def test_create_vehicle_accepts_mercosur_format_argentine_moto_plate(client, tes
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "a123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
+        json={"type": "car", "plate": "a123abc", "brand": "Honda", "model": "Wave", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -130,7 +130,7 @@ def test_create_vehicle_rejects_argentine_plate_matching_neither_format(client, 
     response = client.post(
         f"/users/{test_user.id}/vehicles",
         # 4 letters + 2 digits -- not the old ABC123 shape nor the Mercosur AB123CD one.
-        json={"plate": "ABCD12", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "ABCD12", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
@@ -141,7 +141,7 @@ def test_create_vehicle_rejects_country_other_than_argentina(client, test_user):
     response = client.post(
         f"/users/{test_user.id}/vehicles",
         # Only Argentina is supported for now -- see schemas.VEHICLE_COUNTRIES.
-        json={"plate": "ABC1D23", "brand": "Fiat", "model": "Uno", "country": "BR"},
+        json={"type": "car", "plate": "ABC1D23", "brand": "Fiat", "model": "Uno", "country": "BR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
@@ -151,7 +151,7 @@ def test_create_vehicle_rejects_empty_brand(client, test_user):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "   ", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "AB123CD", "brand": "   ", "model": "Corolla", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
@@ -162,7 +162,7 @@ def test_create_vehicle_requires_self(client, test_user, db):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{other.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
@@ -173,12 +173,12 @@ def test_list_vehicles_returns_created_ones_oldest_first(client, test_user):
     headers = {"Authorization": f"Bearer {token}"}
     client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers=headers,
     )
     client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "XY987ZW", "brand": "Ford", "model": "Fiesta", "country": "AR"},
+        json={"type": "car", "plate": "XY987ZW", "brand": "Ford", "model": "Fiesta", "country": "AR"},
         headers=headers,
     )
 
@@ -195,7 +195,7 @@ def test_delete_vehicle_removes_it(client, test_user):
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers=headers,
     ).json()
 
@@ -221,7 +221,7 @@ def test_delete_vehicle_requires_self(client, test_user, db):
     token_other = _login(client, other)
     created = client.post(
         f"/users/{other.id}/vehicles",
-        json={"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        json={"type": "car", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
         headers={"Authorization": f"Bearer {token_other}"},
     ).json()
 
@@ -237,7 +237,7 @@ def test_create_vehicle_normalizes_plate_and_capitalizes_names(client, test_user
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": " ab 123-cd ", "brand": "honda", "model": "xr 250  tornado", "country": "ar"},
+        json={"type": "car", "plate": " ab 123-cd ", "brand": "honda", "model": "xr 250  tornado", "country": "ar"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
@@ -251,10 +251,102 @@ def test_create_vehicle_keeps_existing_capitals(client, test_user):
     token = _login(client, test_user)
     response = client.post(
         f"/users/{test_user.id}/vehicles",
-        json={"plate": "a123bcd", "brand": "BMW", "model": "XR 250", "country": "AR"},
+        json={"type": "car", "plate": "a123bcd", "brand": "BMW", "model": "XR 250", "country": "AR"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 201
     body = response.json()
     assert body["brand"] == "BMW"
     assert body["model"] == "XR 250"
+
+
+def _create(client, test_user, token, payload):
+    return client.post(
+        f"/users/{test_user.id}/vehicles", json=payload, headers={"Authorization": f"Bearer {token}"}
+    )
+
+
+def test_create_vehicle_saves_its_type(client, test_user):
+    token = _login(client, test_user)
+    response = _create(
+        client, test_user, token,
+        {"type": "Van", "plate": "AB123CD", "brand": "Renault", "model": "Trafic", "country": "AR"},
+    )
+    assert response.status_code == 201
+    assert response.json()["type"] == "van"
+
+
+def test_create_vehicle_requires_a_known_type(client, test_user):
+    token = _login(client, test_user)
+    for payload in (
+        {"plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+        {"type": "truck", "plate": "AB123CD", "brand": "Toyota", "model": "Corolla", "country": "AR"},
+    ):
+        assert _create(client, test_user, token, payload).status_code == 400
+
+
+def test_a_bicycle_needs_no_plate_brand_or_model(client, test_user):
+    token = _login(client, test_user)
+    response = _create(client, test_user, token, {"type": "bicycle", "country": "AR"})
+    assert response.status_code == 201
+    body = response.json()
+    assert body["type"] == "bicycle"
+    assert body["plate"] is None
+    assert body["brand"] is None
+
+
+def test_a_bicycle_keeps_an_optional_description_and_drops_a_plate(client, test_user):
+    token = _login(client, test_user)
+    response = _create(
+        client, test_user, token,
+        {"type": "bicycle", "plate": "AB123CD", "brand": "venzo", "model": "rodado 29", "country": "AR"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["plate"] is None
+    assert body["brand"] == "Venzo"
+    assert body["model"] == "Rodado 29"
+
+
+def test_every_other_type_needs_plate_brand_and_model(client, test_user):
+    token = _login(client, test_user)
+    for missing in ("plate", "brand", "model"):
+        payload = {"type": "motorcycle", "plate": "A123BCD", "brand": "Honda", "model": "XR 250", "country": "AR"}
+        del payload[missing]
+        assert _create(client, test_user, token, payload).status_code == 400
+
+
+def test_fill_in_the_type_of_a_vehicle_saved_before_types(client, test_user, db):
+    from app.models import Vehicle
+
+    legacy = Vehicle(user_id=test_user.id, plate="AC745QF", brand="Chevrolet", model="Cruze", country="AR")
+    db.add(legacy)
+    db.commit()
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    listed = client.get(f"/users/{test_user.id}/vehicles", headers=headers).json()
+    assert listed[0]["type"] is None
+
+    response = client.patch(f"/users/{test_user.id}/vehicles/{legacy.id}", json={"type": "car"}, headers=headers)
+    assert response.status_code == 200
+    assert response.json()["type"] == "car"
+
+    # A vehicle with a plate is never a bicycle.
+    bad = client.patch(f"/users/{test_user.id}/vehicles/{legacy.id}", json={"type": "bicycle"}, headers=headers)
+    assert bad.status_code == 400
+
+
+def test_fill_in_the_type_of_someone_elses_vehicle_is_forbidden(client, test_user, db):
+    from app.models import Vehicle
+
+    other = _other_user(db)
+    vehicle = Vehicle(user_id=other.id, plate="AC745QF", brand="Chevrolet", model="Cruze", country="AR")
+    db.add(vehicle)
+    db.commit()
+    token = _login(client, test_user)
+
+    response = client.patch(
+        f"/users/{other.id}/vehicles/{vehicle.id}", json={"type": "car"}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 403

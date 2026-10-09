@@ -39,3 +39,9 @@ def apply_schema_updates(engine: Engine) -> None:
             )
         )
     logger.info("[STARTUP] Esquema de users actualizado (ciclo de vida de cuentas)")
+    with engine.begin() as connection:
+        # Vehicles gained a type, and a bicycle has no plate (brand/model optional).
+        connection.execute(text("ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS type VARCHAR(16)"))
+        for column in ("plate", "brand", "model"):
+            connection.execute(text(f"ALTER TABLE vehicles ALTER COLUMN {column} DROP NOT NULL"))
+    logger.info("[STARTUP] Esquema de vehicles actualizado (tipo de vehículo)")

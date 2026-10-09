@@ -470,6 +470,12 @@ VehicleModelStr = Annotated[str, StringConstraints(strip_whitespace=True, min_le
 # worth it yet. A set (not a single constant) so this is just one line to widen later.
 VEHICLE_COUNTRIES = {"AR"}
 
+# The kinds of vehicle -- the same values a parking spot accepts (parking-service's
+# VehicleType): a vehicle fits a spot that lists its type, and a spot priced per vehicle
+# type charges by it.
+VEHICLE_TYPES = {"car", "suv", "pickup", "van", "motorcycle", "bicycle"}
+BICYCLE = "bicycle"
+
 
 # Argentina only ever issued four domain formats -- two for cars, two for motorcycles (one
 # digit/letter shorter on one side than the car's equivalent era): three letters + three
@@ -492,22 +498,33 @@ def _capitalize_words(text: str) -> str:
 
 
 class VehicleCreate(BaseModel):
-    plate: VehiclePlateStr
-    brand: VehicleBrandStr
-    model: VehicleModelStr
+    type: str
+    # A bicycle has no plate, and its brand/model are optional; every other type needs all
+    # three (see required_fields_validator).
+    plate: VehiclePlateStr | None = None
+    brand: VehicleBrandStr | None = None
+    model: VehicleModelStr | None = None
     country: str
+
+    @field_validator("type")
+    @classmethod
+    def type_validator(cls, v: str) -> str:
+        vehicle_type = v.strip().lower()
+        if vehicle_type not in VEHICLE_TYPES:
+            raise PydanticCustomError("invalid_vehicle_type", "Unsupported vehicle type")
+        return vehicle_type
 
     @field_validator("plate")
     @classmethod
-    def plate_validator(cls, v: str) -> str:
+    def plate_validator(cls, v: str | None) -> str | None:
         # Stored the way it's printed on the plate: uppercase, no spaces or dashes
         # ("ab 123-cd" -> "AB123CD").
-        return re.sub(r"[\s\-.]", "", v).upper()
+        return None if v is None else re.sub(r"[\s\-.]", "", v).upper()
 
     @field_validator("brand", "model")
     @classmethod
-    def name_validator(cls, v: str) -> str:
-        return _capitalize_words(v)
+    def name_validator(cls, v: str | None) -> str | None:
+        return None if v is None else _capitalize_words(v)
 
     @field_validator("country")
     @classmethod
@@ -518,8 +535,22 @@ class VehicleCreate(BaseModel):
         return code
 
     @model_validator(mode="after")
+    def required_fields_validator(self) -> "VehicleCreate":
+        if self.type == BICYCLE:
+            # Nothing to identify it by but its description: a plate sent anyway is dropped.
+            self.plate = None
+            return self
+        missing = [name for name in ("plate", "brand", "model") if not getattr(self, name)]
+        if missing:
+            raise PydanticCustomError(
+                "vehicle_fields_required",
+                "Plate, brand and model are required for every vehicle but a bicycle",
+            )
+        return self
+
+    @model_validator(mode="after")
     def ar_plate_format_validator(self) -> "VehicleCreate":
-        if self.country == "AR" and not (
+        if self.plate is not None and self.country == "AR" and not (
             AR_CAR_OLD_PLATE_FORMAT.match(self.plate)
             or AR_CAR_MERCOSUR_PLATE_FORMAT.match(self.plate)
             or AR_MOTO_OLD_PLATE_FORMAT.match(self.plate)
@@ -532,11 +563,28 @@ class VehicleCreate(BaseModel):
         return self
 
 
+class VehicleTypeUpdate(BaseModel):
+    """Fills in the type of a vehicle saved before vehicles had one."""
+
+    type: str
+
+    @field_validator("type")
+    @classmethod
+    def type_validator(cls, v: str) -> str:
+        vehicle_type = v.strip().lower()
+        if vehicle_type not in VEHICLE_TYPES or vehicle_type == BICYCLE:
+            # A vehicle saved before types existed always has a plate -- it's not a bicycle.
+            raise PydanticCustomError("invalid_vehicle_type", "Unsupported vehicle type")
+        return vehicle_type
+
+
 class VehicleOut(BaseModel):
     id: UUID
-    plate: str
-    brand: str
-    model: str
+    # null only for a vehicle saved before types existed.
+    type: str | None
+    plate: str | None
+    brand: str | None
+    model: str | None
     country: str
     created_at: datetime
 

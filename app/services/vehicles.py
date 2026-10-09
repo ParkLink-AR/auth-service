@@ -27,12 +27,24 @@ def create_vehicle(
     _require_self(user_id, current_user)
     vehicle = models.Vehicle(
         user_id=user_id,
+        type=payload.type,
         plate=payload.plate,
         brand=payload.brand,
         model=payload.model,
         country=payload.country,
     )
     return vehicles_repository.create(db, vehicle)
+
+
+def update_vehicle_type(
+    user_id, vehicle_id: UUID, payload: schemas.VehicleTypeUpdate, db: Session, current_user: models.User
+) -> models.Vehicle:
+    _require_self(user_id, current_user)
+    vehicle = vehicles_repository.get_by_id(db, vehicle_id)
+    if vehicle is None or vehicle.user_id != user_id:
+        raise ServiceException(status_code=404, title="Not Found", detail="Vehicle not found.")
+    vehicle.type = payload.type
+    return vehicles_repository.save(db, vehicle)
 
 
 def delete_vehicle(user_id, vehicle_id: UUID, db: Session, current_user: models.User) -> None:

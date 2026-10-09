@@ -25,6 +25,12 @@ def create(db: Session, vehicle: models.Vehicle) -> models.Vehicle:
     return vehicle
 
 
+def save(db: Session, vehicle: models.Vehicle) -> models.Vehicle:
+    db.commit()
+    db.refresh(vehicle)
+    return vehicle
+
+
 def delete(db: Session, vehicle: models.Vehicle) -> None:
     db.delete(vehicle)
     db.commit()

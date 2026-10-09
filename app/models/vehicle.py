@@ -8,7 +8,7 @@ from .guid import GUID
 
 
 class Vehicle(Base):
-    """A driver's own vehicle (dominio/marca/modelo/país) -- entirely optional, self-service.
+    """A driver's own vehicle (tipo/dominio/marca/modelo/país) -- self-service.
 
     Picked (optionally) when booking a spot so the owner knows which plate to expect; the
     booking itself stores its own snapshot of plate/brand/model/country at creation time (see
@@ -25,9 +25,16 @@ class Vehicle(Base):
     # Not uppercased/validated beyond trimming at the schema layer (see
     # schemas.VehicleCreate) -- plate formats vary enough by country that strict
     # validation would just reject real plates.
-    plate = Column(String(10), nullable=False)
-    brand = Column(String(80), nullable=False)
-    model = Column(String(80), nullable=False)
+    # Nullable only for a bicycle (no plate; brand/model optional) -- required for every
+    # other type at the schema layer (see schemas.VehicleCreate).
+    plate = Column(String(10), nullable=True)
+    brand = Column(String(80), nullable=True)
+    model = Column(String(80), nullable=True)
+    # Which kind of vehicle it is -- same set of values as the types a parking spot accepts
+    # (car/suv/pickup/van/motorcycle/bicycle, see schemas.VEHICLE_TYPES): it decides which
+    # spots it fits in and, for a spot priced per vehicle type, what the driver pays. NULL
+    # only for a vehicle saved before types existed; the app asks the driver to fill it in.
+    type = Column(String(16), nullable=True)
     # ISO 3166-1 alpha-2 (e.g. "AR", "BR", "UY", "PY") -- drives which plate graphic mobile
     # renders (see VehiclePlate.tsx), not just a free-text label.
     country = Column(String(2), nullable=False)

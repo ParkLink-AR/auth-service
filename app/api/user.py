@@ -171,6 +171,18 @@ def create_vehicle(
     return vehicles_service.create_vehicle(id, payload, db, current_user)
 
 
+@router.patch("/{id}/vehicles/{vehicle_id}", response_model=schemas.VehicleOut)
+def update_vehicle_type(
+    id: UUID,
+    vehicle_id: UUID,
+    payload: schemas.VehicleTypeUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Fills in the type of a vehicle saved before vehicles had one."""
+    return vehicles_service.update_vehicle_type(id, vehicle_id, payload, db, current_user)
+
+
 @router.delete("/{id}/vehicles/{vehicle_id}", response_model=dict)
 def delete_vehicle(
     id: UUID,
