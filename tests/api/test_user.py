@@ -462,3 +462,28 @@ def test_phone_change_code_that_failed_to_send_is_undone(client, test_user, db, 
     monkeypatch.setattr("app.services.users.send_registration_sms", lambda **_kwargs: None)
     retried = client.post(f"/users/{test_user.id}/phone", json={"new_phone": "+5491199997777"}, headers=headers)
     assert retried.status_code == 200
+
+
+def test_upload_avatar_turns_a_rotated_phone_photo_upright_and_shrinks_it(client, test_user, _fake_storage):
+    from io import BytesIO
+
+    from PIL import Image
+
+    # A landscape-encoded photo whose EXIF says "rotate 90°" -- how phones store portraits.
+    buf = BytesIO()
+    exif = Image.Exif()
+    exif[0x0112] = 6  # Orientation: rotate 90° clockwise to display
+    Image.new("RGB", (1200, 600), color=(10, 120, 200)).save(buf, format="JPEG", exif=exif)
+    token = _login(client, test_user)
+
+    response = client.post(
+        f"/users/{test_user.id}/avatar",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"file": ("photo.jpg", buf.getvalue(), "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    key = response.json()["avatar_url"].removeprefix(f"{FAKE_R2_PUBLIC_URL}/")
+    stored = Image.open(BytesIO(_fake_storage[key]))
+    # Upright (portrait) and within the avatar's size cap.
+    assert stored.size == (256, 512)

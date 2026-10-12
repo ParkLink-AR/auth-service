@@ -16,12 +16,15 @@ def _client():
 
 
 def upload_bytes(key: str, data: bytes, content_type: str) -> str:
-    """Uploads `data` to the R2 bucket under `key`, returning its public URL."""
+    """Uploads `data` to the R2 bucket under `key`, returning its public URL. Every key is
+    unique (it carries a random suffix), so an object never changes once written: browsers
+    and the app may keep it cached for a year instead of downloading it again."""
     _client().put_object(
         Bucket=settings.R2_BUCKET_NAME,
         Key=key,
         Body=data,
         ContentType=content_type,
+        CacheControl="public, max-age=31536000, immutable",
     )
     return f"{settings.R2_PUBLIC_URL.rstrip('/')}/{key}"
 

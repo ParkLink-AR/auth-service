@@ -5,7 +5,7 @@ import uuid
 from uuid import UUID
 
 from fastapi import UploadFile
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.exceptions.handler import ServiceException
 from app.utils import storage
@@ -60,12 +60,14 @@ async def save_avatar(user_id: UUID, file: UploadFile) -> str:
             title="Bad Request",
             detail="The uploaded file is not a valid image.",
         )
-    image = Image.open(io.BytesIO(raw)).convert("RGB")
+    # Upright first: a phone photo's rotation lives in its EXIF orientation tag, which the
+    # re-encode below drops -- without this a portrait selfie could come out sideways.
+    image = ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGB")
     image.thumbnail((AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION))
 
     filename = f"{user_id}-{uuid.uuid4().hex[:8]}.jpg"
     buffer = io.BytesIO()
-    image.save(buffer, format="JPEG", quality=85)
+    image.save(buffer, format="JPEG", quality=82, optimize=True, progressive=True)
 
     return storage.upload_bytes(f"avatars/{filename}", buffer.getvalue(), "image/jpeg")
 
