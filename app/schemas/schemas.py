@@ -690,3 +690,47 @@ class AdminAccountOut(BaseModel):
     last_login_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PayoutInfoChangeOut(BaseModel):
+    """One change to an owner's bank details, for the admin panel."""
+
+    id: UUID
+    previous_cbu: Optional[str] = None
+    cbu: Optional[str] = None
+    previous_titular: Optional[str] = None
+    titular: Optional[str] = None
+    previous_cuil: Optional[str] = None
+    cuil: Optional[str] = None
+    changed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminAuditCreate(BaseModel):
+    """What the gateway reports after an admin write (internal)."""
+
+    admin_id: Optional[str] = None
+    admin_username: Optional[str] = None
+    method: Annotated[str, StringConstraints(max_length=8)]
+    path: Annotated[str, StringConstraints(max_length=300)]
+    status_code: int
+    summary: Optional[Annotated[str, StringConstraints(max_length=2000)]] = None
+
+
+class AdminAuditEntryOut(BaseModel):
+    id: UUID
+    admin_id: Optional[str] = None
+    admin_username: Optional[str] = None
+    method: str
+    path: str
+    status_code: int
+    summary: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminAuditPage(BaseModel):
+    items: list[AdminAuditEntryOut]
+    total: int

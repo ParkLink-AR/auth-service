@@ -198,3 +198,29 @@ def test_update_payout_info_rejects_cbu_with_wrong_check_digit(client, test_user
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code in (400, 422)
+
+
+# -------------------------
+# Bank detail history (admin panel)
+# -------------------------
+
+
+def test_payout_info_changes_are_kept_for_the_admin_panel(client, test_user):
+    token = _login(client, test_user)
+    headers = {"Authorization": f"Bearer {token}"}
+    first = {"cbu": VALID_CBU, "payout_titular": "Test User", "cuil": VALID_CUIL}
+    client.put(f"/users/{test_user.id}/payout-info", json=first, headers=headers)
+    # The same data again isn't a change.
+    client.put(f"/users/{test_user.id}/payout-info", json=first, headers=headers)
+    client.put(
+        f"/users/{test_user.id}/payout-info",
+        json={**first, "payout_titular": "Otra Persona"},
+        headers=headers,
+    )
+
+    history = client.get(f"/admin/users/{test_user.id}/payout-info-history").json()
+
+    assert len(history) == 2
+    newest, oldest = history
+    assert (newest["previous_titular"], newest["titular"]) == ("Test User", "Otra Persona")
+    assert (oldest["previous_cbu"], oldest["cbu"]) == (None, VALID_CBU)

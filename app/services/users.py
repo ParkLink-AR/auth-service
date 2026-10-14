@@ -297,6 +297,22 @@ def update_payout_info(
 ) -> models.User:
     _require_self(user_id, current_user)
 
+    # Kept for ParkLink staff: where the money goes, and whether that changed recently
+    # (see models.PayoutInfoChange).
+    previous = (current_user.cbu, current_user.payout_titular, current_user.cuil)
+    if previous != (payload.cbu, payload.payout_titular, payload.cuil):
+        db.add(
+            models.PayoutInfoChange(
+                user_id=current_user.id,
+                previous_cbu=current_user.cbu,
+                cbu=payload.cbu,
+                previous_titular=current_user.payout_titular,
+                titular=payload.payout_titular,
+                previous_cuil=current_user.cuil,
+                cuil=payload.cuil,
+            )
+        )
+
     current_user.cbu = payload.cbu
     current_user.payout_titular = payload.payout_titular
     current_user.cuil = payload.cuil

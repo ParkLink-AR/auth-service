@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
-from app import schemas
+from app import models, schemas
 from app.database import get_db
 from app.services import account_lifecycle
 from app.services import admin as admin_service
@@ -81,3 +81,41 @@ def delete_user_at_holders_request(
     art. 16) -- e.g. by email, or a suspended user who can't log in. Wipes the personal
     data right away (unless ParkLink still owes them money, then as soon as it's paid)."""
     return account_lifecycle.admin_request_deletion(db, id, _admin_id(x_user_id), payload.reason)
+
+
+@router.get("/users/{id}/payout-info-history", response_model=list[schemas.PayoutInfoChangeOut])
+def get_payout_info_history(
+    id: UUID,
+    db: Session = Depends(get_db),
+):
+    """Every change to the owner's bank details, newest first -- shown next to a settlement
+    so a CBU swapped right before it stands out."""
+    return (
+        db.query(models.PayoutInfoChange)
+        .filter(models.PayoutInfoChange.user_id == id)
+        .order_by(models.PayoutInfoChange.changed_at.desc())
+        .limit(50)
+        .all()
+    )
+
+
+@router.get("/audit-log", response_model=schemas.AdminAuditPage)
+def get_audit_log(
+    admin: str | None = Query(default=None, description="Only this admin's actions (username)"),
+    query: str | None = Query(default=None, description="Matches the path or the summary"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """What admins did from the panel, newest first (recorded by the gateway)."""
+    entries = db.query(models.AdminAuditEntry)
+    if admin:
+        entries = entries.filter(models.AdminAuditEntry.admin_username == admin)
+    if query:
+        pattern = f"%{query.strip()}%"
+        entries = entries.filter(
+            models.AdminAuditEntry.path.ilike(pattern) | models.AdminAuditEntry.summary.ilike(pattern)
+        )
+    total = entries.count()
+    items = entries.order_by(models.AdminAuditEntry.created_at.desc()).offset(offset).limit(limit).all()
+    return schemas.AdminAuditPage(items=items, total=total)

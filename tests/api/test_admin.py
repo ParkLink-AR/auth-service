@@ -132,3 +132,37 @@ def test_admin_user_detail_has_payout_info_false_when_incomplete(client, db):
 def test_admin_user_detail_404_for_unknown_user(client, db):
     response = client.get(f"/admin/users/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+def test_admin_actions_recorded_by_the_gateway_are_listed_newest_first(client, db):
+    for path in ("/admin/users/1/suspend", "/admin/refunds/p1/retry"):
+        response = client.post(
+            "/internal/admin-audit",
+            json={"admin_id": "a1", "admin_username": "ana", "method": "POST", "path": path,
+                  "status_code": 200, "summary": "reason: prueba"},
+        )
+        assert response.status_code == 204
+
+    page = client.get("/admin/audit-log").json()
+    assert page["total"] == 2
+    assert [entry["path"] for entry in page["items"]] == ["/admin/refunds/p1/retry", "/admin/users/1/suspend"]
+
+    filtered = client.get("/admin/audit-log", params={"query": "refunds"}).json()
+    assert [entry["path"] for entry in filtered["items"]] == ["/admin/refunds/p1/retry"]
+
+
+def test_announcement_audience_lists_active_accounts_by_type(client, db):
+    from app.models import AccountType, UserStatus
+
+    driver = _make_user(db, email="d@example.com", phone="+5491100000001", dni="10000001", account_type=AccountType.DRIVER)
+    owner = _make_user(db, email="o@example.com", phone="+5491100000002", dni="10000002", account_type=AccountType.OWNER)
+    both = _make_user(db, email="b@example.com", phone="+5491100000003", dni="10000003", account_type=AccountType.BOTH)
+    _make_user(db, email="s@example.com", phone="+5491100000004", dni="10000004",
+               account_type=AccountType.DRIVER, status=UserStatus.SUSPENDED)
+
+    def ids(audience):
+        return set(client.get("/internal/users/ids", params={"audience": audience}).json())
+
+    assert ids("drivers") == {str(driver.id), str(both.id)}
+    assert ids("owners") == {str(owner.id), str(both.id)}
+    assert ids("all") == {str(driver.id), str(owner.id), str(both.id)}
