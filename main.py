@@ -20,6 +20,7 @@ from app.config import settings
 from app.schema_updates import apply_schema_updates
 from app.services import account_lifecycle, auth_service
 from app.services.admin_auth import PROTECTED_SUPERADMIN_USERNAME
+from app.monitoring import init_monitoring
 
 setup_logger()
 
@@ -104,6 +105,8 @@ async def lifespan(app: FastAPI):
         job.cancel()
     logger.info("[SHUTDOWN] ParkLink Auth Service detenido")
 
+
+init_monitoring()
 
 app = FastAPI(title="ParkLink Auth Service", version="1.0.0", lifespan=lifespan)
 

@@ -16,3 +16,4 @@ python-multipart==0.0.9
 Pillow==11.0.0
 boto3==1.35.36
 ruff==0.8.4
+sentry-sdk[fastapi]==2.19.2
