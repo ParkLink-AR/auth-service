@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     # 25.326 (art. 16) gives 5 business days to act on a deletion request; 7 calendar
     # days always fall within them.
     ACCOUNT_DELETION_GRACE_DAYS: int = 7
+    # Version of the Terms of Service and Privacy Policy a new account accepts (the date
+    # they were published at parklink.com.ar/terminos and /privacidad). Bump it when they
+    # change, so each account keeps which version it agreed to.
+    TERMS_VERSION: str = "2026-10-15"
     # Background job that wipes accounts whose grace period is over (see main.py).
     ACCOUNT_LIFECYCLE_JOB_ENABLED: bool = True
     ACCOUNT_LIFECYCLE_JOB_INTERVAL_SECONDS: int = 3600

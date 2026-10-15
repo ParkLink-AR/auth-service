@@ -90,3 +90,7 @@ class User(Base):
     deletion_requested_by_admin_id = Column(GUID(), nullable=True)
     deletion_reason = Column(String(500), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    # When the account accepted the Terms of Service and Privacy Policy, and which version
+    # (settings.TERMS_VERSION). Null for accounts created before acceptance was asked.
+    terms_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    terms_version = Column(String(20), nullable=True)

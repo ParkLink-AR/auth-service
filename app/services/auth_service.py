@@ -279,6 +279,8 @@ def register(payload: schemas.UserCreate, db: Session) -> models.User:
         email_verified=True,
         phone_verified=phone_verification is not None,
         account_type=payload.account_type,
+        terms_accepted_at=datetime.now(timezone.utc),
+        terms_version=settings.TERMS_VERSION,
     )
 
     try:

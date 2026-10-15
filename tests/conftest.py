@@ -74,6 +74,7 @@ def valid_user_data():
         "dni": "30999888",
         "birth_date": "1990-01-01",
         "password": "SecurePass123",
+        "accepted_terms": True,
         "device_id": "device-abc",
         "device_name": "iPhone 15",
     }

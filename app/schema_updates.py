@@ -20,6 +20,8 @@ _USER_COLUMNS = {
     "deletion_requested_by_admin_id": "UUID",
     "deletion_reason": "VARCHAR(500)",
     "deleted_at": "TIMESTAMPTZ",
+    "terms_accepted_at": "TIMESTAMPTZ",
+    "terms_version": "VARCHAR(20)",
 }
 
 

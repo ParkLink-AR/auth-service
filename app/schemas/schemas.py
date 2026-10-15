@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Annotated, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, computed_field, field_validator, model_validator, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator, model_validator, StringConstraints
 from pydantic_core import PydanticCustomError
 
 from app.models.admin_account import AdminRole
@@ -124,6 +124,15 @@ class UserCreate(DeviceInfo):
     birth_date: date
     password: str
     account_type: AccountType = AccountType.DRIVER
+    # The Terms of Service and Privacy Policy have to be accepted to sign up.
+    accepted_terms: bool = Field(default=False, validate_default=True)
+
+    @field_validator("accepted_terms")
+    @classmethod
+    def terms_must_be_accepted(cls, v: bool) -> bool:
+        if not v:
+            raise ValueError("Tenés que aceptar los Términos y la Política de Privacidad.")
+        return v
 
     @field_validator("email")
     @classmethod

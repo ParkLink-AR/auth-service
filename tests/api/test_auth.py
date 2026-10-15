@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from app.models import RegistrationVerification, UserStatus, VerificationToken, VerificationTokenType
+from app.config import settings
+from app.models import RegistrationVerification, User, UserStatus, VerificationToken, VerificationTokenType
 from app.security import hash_password, hash_token
 from app.services.auth_service import issue_email_verification_code
 
@@ -67,6 +68,7 @@ def _register_verified_user(
             "dni": dni,
             "birth_date": birth_date,
             "password": password,
+            "accepted_terms": True,
         },
     )
 
@@ -154,6 +156,34 @@ def test_register_creates_already_verified_user(client, db):
     assert body["status"] == "ACTIVE"
 
 
+def test_register_requires_accepting_the_terms(client, db):
+    _verify_email_for_registration(client, db, "noterms@example.com")
+    _verify_phone_for_registration(client, db, "+5491100000009")
+    payload = {
+        "email": "noterms@example.com",
+        "phone": "+5491100000009",
+        "first_name": "Sin",
+        "last_name": "Terminos",
+        "dni": "20000009",
+        "birth_date": "1990-01-01",
+        "password": "SecurePass123",
+    }
+
+    for body in (payload, {**payload, "accepted_terms": False}):
+        response = client.post("/auth/register", json=body)
+        assert response.status_code == 400
+        assert "Términos" in response.text
+
+
+def test_register_records_which_terms_were_accepted(client, db):
+    response = _register_verified_user(client, db, email="terms@example.com", phone="+5491100000010", dni="20000010")
+    assert response.status_code in (200, 201)
+
+    user = db.query(User).filter(User.email == "terms@example.com").one()
+    assert user.terms_accepted_at is not None
+    assert user.terms_version == settings.TERMS_VERSION
+
+
 def test_register_rejects_without_email_verification(client, db):
     _verify_phone_for_registration(client, db, "+5491100000004")
     response = client.post(
@@ -166,6 +196,7 @@ def test_register_rejects_without_email_verification(client, db):
             "dni": "20000004",
             "birth_date": "1990-01-01",
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -184,6 +215,7 @@ def test_register_rejects_without_phone_verification(client, db):
             "dni": "20000005",
             "birth_date": "1990-01-01",
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -202,6 +234,7 @@ def test_register_rejects_duplicate_email(client, db, test_user):
             "dni": "20000006",
             "birth_date": "1990-01-01",
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -219,6 +252,7 @@ def test_register_rejects_duplicate_phone(client, db, test_user):
             "dni": "20000007",
             "birth_date": "1990-01-01",
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -237,6 +271,7 @@ def test_register_rejects_duplicate_dni(client, db, test_user):
             "dni": test_user.dni,
             "birth_date": "1990-01-01",
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -255,6 +290,7 @@ def test_register_rejects_weak_password(client, db):
             "dni": "20000008",
             "birth_date": "1990-01-01",
             "password": "weak",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
@@ -274,6 +310,7 @@ def test_register_rejects_underage(client, db):
             "dni": "20000009",
             "birth_date": recent_birth_date,
             "password": "SecurePass123",
+            "accepted_terms": True,
         },
     )
     assert response.status_code == 400
