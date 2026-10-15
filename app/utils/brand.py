@@ -21,5 +21,7 @@ BORDER = "#DDE3EC"
 # a stable public URL. Emails and the browser-facing pages linked from them
 # need a logo URL that resolves from any inbox/network today, so they point
 # at the landing page instead, which is already public on GitHub Pages.
-# This is the wordmark-only variant (~5.3:1 aspect ratio), not the square icon.
-LOGO_URL = "https://www.parklink.com.ar/logo-letras.png"
+# This is the wordmark-only variant (~5.3:1 aspect ratio), not the square icon. It lives
+# under assets/logos/ on the landing page -- if the landing page moves it again, emails show
+# a broken image, so update this along with it.
+LOGO_URL = "https://www.parklink.com.ar/assets/logos/logo-letras.png"
