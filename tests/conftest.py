@@ -5,6 +5,8 @@ os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ["JWT_SECRET"] = "test-secret"
 os.environ.setdefault("SKIP_EMAIL_VERIFICATION", "false")
 os.environ["ACCOUNT_LIFECYCLE_JOB_ENABLED"] = "false"
+# Los usuarios de ejemplo de la demo no deben aparecer en las cuentas de las pruebas.
+os.environ["SEED_DEMO_DATA"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

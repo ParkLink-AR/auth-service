@@ -82,5 +82,6 @@ def test_does_not_touch_real_accounts(db, test_user):
     assert isinstance(test_user.id, uuid.UUID) or test_user.id
 
 
-def test_is_off_unless_asked_for():
-    assert Settings.model_fields["SEED_DEMO_DATA"].default is False
+def test_is_on_by_default_and_can_be_turned_off():
+    assert Settings.model_fields["SEED_DEMO_DATA"].default is True
+    assert Settings(SEED_DEMO_DATA="false").SEED_DEMO_DATA is False
