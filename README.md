@@ -247,3 +247,8 @@ app/
 ├── utils/          # email.py (Brevo), email_templates.py
 ├── config.py, database.py, security.py
 ```
+
+## Datos de demostración
+
+Con `SEED_DEMO_DATA=true` crea al arrancar los dueños y conductores de ejemplo de la demo (`app/demo_seed.py`): 10 dueños y 60 conductores con nombres
+reales, ids fijos y sin posibilidad de iniciar sesión. Detalles y cómo quitarlos en `parking-service/README.md`, sección "Datos de demostración".

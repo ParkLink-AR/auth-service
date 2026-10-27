@@ -18,6 +18,7 @@ from app.models import AdminAccount, AdminRole
 from app.security import hash_password
 from app.config import settings
 from app.schema_updates import apply_schema_updates
+from app.demo_seed import seed_demo_users
 from app.services import account_lifecycle, auth_service
 from app.services.admin_auth import PROTECTED_SUPERADMIN_USERNAME
 from app.monitoring import init_monitoring
@@ -47,6 +48,18 @@ def _seed_first_superadmin() -> None:
             "[STARTUP] Cuenta superadmin inicial creada (username="
             f"'{_SEED_SUPERADMIN_USERNAME}') -- cambiar la contraseña por defecto cuanto antes."
         )
+    finally:
+        db.close()
+
+
+def _seed_demo_users() -> None:
+    """Usuarios de ejemplo de la demo (SEED_DEMO_DATA=true). Un fallo no debe impedir el arranque."""
+    db = SessionLocal()
+    try:
+        seed_demo_users(db)
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        logger.error(f"[DEMO] No se pudieron crear los usuarios de ejemplo: {exc}")
     finally:
         db.close()
 
@@ -96,6 +109,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     apply_schema_updates(engine)
     _seed_first_superadmin()
+    if settings.SEED_DEMO_DATA:
+        _seed_demo_users()
 
     job = asyncio.create_task(_account_lifecycle_job()) if settings.ACCOUNT_LIFECYCLE_JOB_ENABLED else None
 

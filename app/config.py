@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # Background job that wipes accounts whose grace period is over (see main.py).
     ACCOUNT_LIFECYCLE_JOB_ENABLED: bool = True
     ACCOUNT_LIFECYCLE_JOB_INTERVAL_SECONDS: int = 3600
+    # Carga los dueños y conductores de ejemplo que usan las cocheras y reseñas de demostración
+    # (ver app/demo_seed.py). Desactivado por defecto.
+    SEED_DEMO_DATA: bool = False
 
     # Cloudflare R2 (S3-compatible object storage) -- avatars are uploaded
     # here instead of local disk, which doesn't survive a Render redeploy.
