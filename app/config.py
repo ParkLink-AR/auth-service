@@ -1,4 +1,6 @@
 # config.py
+import sys
+
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict, model_validator
 
@@ -104,4 +106,5 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()
+# Tests must not pick up the developer's real .env (real Brevo/Twilio/R2 keys, secrets).
+settings = Settings(_env_file=None if "pytest" in sys.modules else ".env")
